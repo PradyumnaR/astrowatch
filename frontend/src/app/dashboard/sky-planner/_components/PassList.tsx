@@ -13,7 +13,7 @@ const DEFAULT_SATS = [
   { id: 20580, name: "Hubble (HST)" },
 ];
 
-const DEFAULT_DAYS = 2;
+const DEFAULT_DAYS = 1;
 
 function findHourIndex(times: string[], utcSecs: number): number {
   const passDate = new Date(Number(utcSecs) * 1000);

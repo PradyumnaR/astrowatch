@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import type { Location, SatellitePass, WeatherData } from "@/types";
+import type {
+  Location,
+  SatellitePass,
+  WeatherData,
+  SavedSatellite,
+} from "@/types";
 
 interface AstroStore {
   //location
@@ -17,6 +22,17 @@ interface AstroStore {
   isLoadingWeather: boolean;
   setWeather: (w: WeatherData) => void;
   setLoadingWeather: (b: boolean) => void;
+  //saved satellite
+  savedSatellites: SavedSatellite[];
+  isLoadingSaved: boolean;
+  setSavedSatellites: (s: SavedSatellite[]) => void;
+  addSaved: (s: SavedSatellite) => void;
+  removeSaved: (noraId: number) => void;
+  setLoadingSaved: (b: boolean) => void;
+  // pass cache — avoids repeat N2YO calls
+  passCache: Record<number, SatellitePass[]>;
+  setPassCache: (noradId: number, passes: SatellitePass[]) => void;
+  clearPassCache: () => void;
 }
 
 export const useAstroStore = create<AstroStore>()((set) => ({
@@ -35,4 +51,26 @@ export const useAstroStore = create<AstroStore>()((set) => ({
   isLoadingWeather: false,
   setWeather: (w) => set({ weather: w }),
   setLoadingWeather: (b) => set({ isLoadingWeather: b }),
+  //saved Satellites
+  savedSatellites: [],
+  isLoadingSaved: false,
+  setSavedSatellites: (s) => set({ savedSatellites: s }),
+  addSaved: (s) =>
+    set((state) => ({
+      savedSatellites: [...state.savedSatellites, s],
+    })),
+  removeSaved: (noradId) =>
+    set((state) => ({
+      savedSatellites: state.savedSatellites.filter(
+        (s) => s.noradId !== noradId,
+      ),
+    })),
+  setLoadingSaved: (b) => set({ isLoadingSaved: b }),
+  // pass cache
+  passCache: {},
+  setPassCache: (noradId, passes) =>
+    set((state) => ({
+      passCache: { ...state.passCache, [noradId]: passes },
+    })),
+  clearPassCache: () => set({ passCache: {} }),
 }));

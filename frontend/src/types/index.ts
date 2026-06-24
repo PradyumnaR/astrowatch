@@ -36,3 +36,16 @@ export interface WeatherData {
   moonIllumination: number;
   bortle: number;
 }
+
+export interface SavedSatellite {
+  id: string; //Supabase row UUID
+  noradId: number; //NORAD catalog ID e.g. 25544
+  satname: string;
+  savedAt: string; //ISO timestamp
+}
+
+export interface CelestrakSatellite {
+  noradId: number;
+  satName: string;
+  category: string;
+}

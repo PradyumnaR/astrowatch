@@ -1,3 +1,4 @@
+import { SignInButton, SignUpButton, Show, UserButton } from "@clerk/nextjs";
 import NavLink from "./NavLink";
 
 export default function NavBar() {
@@ -31,14 +32,27 @@ export default function NavBar() {
         >
           △
         </button>
-        <div
-          className="w-8 h-8 rounded-full bg-aw-purple/20
-            border border-aw-purple/30
-            flex items-center justify-center
-            text-[11px] font-semibold text-aw-purple"
-        >
-          PR
-        </div>
+        <Show when="signed-out">
+          <SignInButton mode="modal">
+            <button
+              className="h-8 px-3 rounded-lg border border-aw-border
+                text-[13px] text-white/70 hover:text-white transition-colors"
+            >
+              Sign in
+            </button>
+          </SignInButton>
+          <SignUpButton mode="modal">
+            <button
+              className="h-8 px-3 rounded-lg bg-aw-purple/20 border border-aw-purple/30
+                text-[13px] font-medium text-aw-purple hover:bg-aw-purple/30 transition-colors"
+            >
+              Sign up
+            </button>
+          </SignUpButton>
+        </Show>
+        <Show when="signed-in">
+          <UserButton />
+        </Show>
       </div>
     </header>
   );
