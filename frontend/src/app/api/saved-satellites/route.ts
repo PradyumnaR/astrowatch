@@ -6,3 +6,80 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!, // service key bypasses RLS
 );
+
+// GET — fetch all saved satellites for current user
+export async function GET() {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data, error } = await supabase
+      .from("saved_satellites")
+      .select("*")
+      .eq("clerk_user_id", userId)
+      .order("saved_at", { ascending: true });
+
+    if (error) throw error;
+
+    // convert snake_case → camelCase
+    const satellites = data.map((row) => ({
+      id: row.id,
+      noradId: row.norad_id,
+      satName: row.sat_name,
+      savedAt: row.saved_at,
+    }));
+
+    return NextResponse.json(satellites);
+  } catch (err) {
+    console.error("GET saved satellites error:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch saved satellites" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { noradId, satName } = await req.json();
+
+    if (!noradId || !satName) {
+      return NextResponse.json(
+        { error: "noradId and satName required" },
+        { status: 400 },
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("saved_satellites")
+      .insert({
+        clerk_user_id: userId,
+        norad_id: noradId,
+        sat_name: satName,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({
+      id: data.id,
+      noradId: data.norad_id,
+      satName: data.sat_name,
+      savedAt: data.saved_at,
+    });
+  } catch (err) {
+    console.error("POST saved satellite error:", err);
+    return NextResponse.json(
+      { error: "Failed to save satellite" },
+      { status: 500 },
+    );
+  }
+}

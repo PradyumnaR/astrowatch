@@ -18,7 +18,7 @@ export default function NavBar() {
 
       <nav className="flex gap-1 flex-1">
         <NavLink href="/dashboard/sky-planner">Sky planner</NavLink>
-        <NavLink href="/dashboard/my-passes">My passes</NavLink>
+        <NavLink href="/dashboard/my-satellites">My Satellites</NavLink>
         {/* <NavLink href="/dashboard/explore">Explore</NavLink>
         <NavLink href="/dashboard/mcp-apis">MCP APIs</NavLink> */}
       </nav>
