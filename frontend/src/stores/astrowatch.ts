@@ -24,9 +24,11 @@ interface AstroStore {
   setLoadingWeather: (b: boolean) => void;
   //saved satellite
   savedSatellites: SavedSatellite[];
+  savedPasses: SatellitePass[];
   isLoadingSaved: boolean;
   setSavedSatellites: (s: SavedSatellite[]) => void;
   addSaved: (s: SavedSatellite) => void;
+  setSavedPasses: (p: SatellitePass[]) => void;
   removeSaved: (noraId: number) => void;
   setLoadingSaved: (b: boolean) => void;
   // pass cache — avoids repeat N2YO calls
@@ -53,6 +55,7 @@ export const useAstroStore = create<AstroStore>()((set) => ({
   setLoadingWeather: (b) => set({ isLoadingWeather: b }),
   //saved Satellites
   savedSatellites: [],
+  savedPasses: [],
   isLoadingSaved: false,
   setSavedSatellites: (s) => set({ savedSatellites: s }),
   addSaved: (s) =>
@@ -66,6 +69,7 @@ export const useAstroStore = create<AstroStore>()((set) => ({
       ),
     })),
   setLoadingSaved: (b) => set({ isLoadingSaved: b }),
+  setSavedPasses: (p) => set({ savedPasses: p }),
   // pass cache
   passCache: {},
   setPassCache: (noradId, passes) =>

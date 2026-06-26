@@ -9,7 +9,7 @@ const supabase = createClient(
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { userId } = await auth();
@@ -17,10 +17,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     const { error } = await supabase
       .from("saved_satellites")
       .delete()
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("clerk_user_id", userId); // security — only delete own rows
 
     if (error) throw error;
