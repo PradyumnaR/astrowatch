@@ -19,6 +19,8 @@ export async function reverseGeocode(
       data.address?.city ||
       data.address?.town ||
       data.address?.village ||
+      data.address?.amenity ||
+      data.address?.quarter ||
       "Unknown";
 
     const state = data.address?.state_code || data.address?.state || "";

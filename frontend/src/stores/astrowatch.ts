@@ -1,15 +1,21 @@
 import { create } from "zustand";
 import type {
   Location,
+  LocationStatus,
   SatellitePass,
   WeatherData,
   SavedSatellite,
 } from "@/types";
+import { DEFAULT_LOCATION } from "@/consts";
+
+import { reverseGeocode } from "@/lib/geocode";
 
 interface AstroStore {
   //location
   location: Location | null;
+  locationStatus: LocationStatus;
   setLocation: (l: Location) => void;
+  fetchLocation: () => void;
   //passes
   passes: SatellitePass[];
   selectedPass: SatellitePass | null;
@@ -34,13 +40,38 @@ interface AstroStore {
   // pass cache — avoids repeat N2YO calls
   passCache: Record<number, SatellitePass[]>;
   setPassCache: (noradId: number, passes: SatellitePass[]) => void;
+  removePassCache: (noradId: number) => void;
   clearPassCache: () => void;
 }
 
 export const useAstroStore = create<AstroStore>()((set) => ({
   //locations
   location: null,
+  locationStatus: "detecting",
   setLocation: (l) => set({ location: l }),
+  fetchLocation: () => {
+    set({ locationStatus: "detecting" });
+
+    // browser doesn't support geolocation
+    if (!navigator.geolocation) {
+      set({ location: { ...DEFAULT_LOCATION }, locationStatus: "error" });
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      // ── success ──
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const name = await reverseGeocode(lat, lng);
+        set({ location: { lat, lng, name }, locationStatus: "detected" });
+      },
+      // ── denied / error ──
+      () => {
+        set({ location: { ...DEFAULT_LOCATION }, locationStatus: "denied" });
+      },
+      { timeout: 8000, maximumAge: 300_000 },
+    );
+  },
   // passes
   passes: [],
   selectedPass: null,
@@ -76,5 +107,11 @@ export const useAstroStore = create<AstroStore>()((set) => ({
     set((state) => ({
       passCache: { ...state.passCache, [noradId]: passes },
     })),
+  removePassCache: (noradId) =>
+    set((state) => {
+      const newPassesCache = { ...state.passCache };
+      delete newPassesCache[noradId];
+      return { passCache: { ...newPassesCache } };
+    }),
   clearPassCache: () => set({ passCache: {} }),
 }));

@@ -1,5 +1,5 @@
 import type { SatellitePass } from "@/types";
-import ScoreBadge from "./ScoreBadge";
+import ScoreBadge from "@/components/ScoreBadge";
 import { formatPassTime } from "@/lib/formatPassTime";
 
 export default function PassItem({

@@ -90,46 +90,12 @@ export default function BrowseTab() {
       const saved = (await res.json()) as SavedSatellite;
       // 2 — add to Zustand store immediately
       addSaved(saved);
-
-      // // 3 — fetch 7-day passes from N2YO for this satellite
-      // if (location) {
-      //   await fetchAndCachePasses(sat.noradId, sat.satName);
-      // }
     } catch (err) {
       console.error("Save failed:", err);
     } finally {
       setSavingId(null);
     }
   }
-
-  // async function fetchAndCachePasses(noradId: number, satName: string) {
-  //   if (!location) return;
-
-  //   try {
-  //     const res = await fetch(
-  //       `/api/passes?id=${noradId}` +
-  //         `&lat=${location.lat}` +
-  //         `&lng=${location.lng}&days=7`,
-  //     );
-
-  //     const data = await res.json();
-
-  //     const enriched = data.map((p: any) => ({
-  //       ...p,
-  //       satid: noradId,
-  //       satname: satName,
-  //     }));
-
-  //     // cache in Zustand
-  //     setPassCache(noradId, enriched);
-  //     const updated = [...savedPasses, ...enriched].sort(
-  //       (a, b) => a.startUTC - b.startUTC,
-  //     );
-  //     setSavedPasses(updated);
-  //   } catch (err) {
-  //     console.error("Pass fetch failed:", err);
-  //   }
-  // }
 
   return (
     <div className="flex flex-col gap-3">

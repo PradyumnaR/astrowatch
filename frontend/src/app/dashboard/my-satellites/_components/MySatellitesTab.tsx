@@ -1,21 +1,15 @@
 "use client";
 
+import { useSavedSatellites } from "@/hooks/useSavedSatellites";
 import { useAstroStore } from "@/stores/astrowatch";
 import { SavedSatellite } from "@/types";
-
-const SAT_COLORS: Record<number, string> = {
-  25544: "#2dd4a0",
-  48274: "#4da6f5",
-  33591: "#f5a623",
-  25338: "#f5a623",
-  20580: "#a89af9",
-};
-const DEFAULT_COLOR = "#7c6ff7";
+import { SAT_COLORS, DEFAULT_COLOR } from "@/consts";
 
 export default function MySatellitesTab() {
   const { savedSatellites, isLoadingSaved, removeSaved } = useAstroStore();
+  const { handleRemove } = useSavedSatellites();
 
-  async function handleRemove(sat: SavedSatellite) {
+  async function handleRemoveSat(sat: SavedSatellite) {
     console.log(sat);
     try {
       const res = await fetch(`/api/saved-satellites/${sat.id}`, {
@@ -23,6 +17,7 @@ export default function MySatellitesTab() {
       });
       if (!res.ok) throw new Error("Failed to remove");
       removeSaved(sat.noradId);
+      handleRemove(sat.noradId);
     } catch (err) {
       console.error("Remove failed:", err);
     }
@@ -98,7 +93,7 @@ export default function MySatellitesTab() {
 
           {/* remove */}
           <button
-            onClick={() => handleRemove(sat)}
+            onClick={() => handleRemoveSat(sat)}
             className="text-white/15 hover:text-red-400
               transition-colors flex-shrink-0 p-1 rounded"
             aria-label={`Remove ${sat.satName}`}

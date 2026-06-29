@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useAstroStore } from "@/stores/astrowatch";
+import { SAT_COLORS, DEFAULT_COLOR } from "@/consts";
 
 // ── constants ────────────────────────────────────────
 const W = 680; // viewBox width
@@ -9,17 +10,6 @@ const H = 340; // viewBox height
 const HORIZON_Y = 298; // y position of horizon line
 const COMPASS_Y = 322; // y position of compass labels
 const PEAK_MIN_Y = 40; // minimum y for 90° elevation
-
-// satellite arc colors
-const SAT_COLORS: Record<string, string> = {
-  25544: "#2dd4a0", // ISS       → teal
-  48274: "#4da6f5", // Tiangong  → blue
-  33591: "#f5a623", // NOAA-19   → amber
-  25338: "#f5a623", // NOAA-15   → amber
-  28654: "#f5a623", // NOAA-18   → amber
-  20580: "#a78bfa", // Hubble    → violet
-};
-const DEFAULT_COLOR = "#7c6ff7"; // purple fallback
 
 // compass directions evenly across width
 const COMPASS = [
@@ -393,7 +383,7 @@ export default function SkyCanvas() {
         {/* ── top left — location ── */}
         <text
           x="14"
-          y="18"
+          y="20"
           fontSize="11"
           fill="rgba(255,255,255,0.28)"
           fontFamily="system-ui"
@@ -404,10 +394,10 @@ export default function SkyCanvas() {
         {/* ── top right — satellite indicator ── */}
         {selectedPass && (
           <g>
-            <circle cx={W - 62} cy="13" r="4" fill={color} />
+            {/* <circle cx={W - 62} cy="13" r="4" fill={color} /> */}
             <text
               x={W - 100}
-              y="50"
+              y="20"
               fontSize="11"
               fill="rgba(255,255,255,0.5)"
               fontFamily="system-ui"

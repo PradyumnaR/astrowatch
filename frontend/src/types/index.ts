@@ -37,6 +37,15 @@ export interface WeatherData {
   bortle: number;
 }
 
+export interface WeatherApiResponse {
+  hourly: {
+    time: string[];
+    cloudCover: number[];
+    temperature: number[];
+    windSpeed: number[];
+  };
+}
+
 export interface SavedSatellite {
   id: string; //Supabase row UUID
   noradId: number; //NORAD catalog ID e.g. 25544
@@ -49,3 +58,5 @@ export interface CelestrakSatellite {
   satName: string;
   category: string;
 }
+
+export type LocationStatus = "detecting" | "detected" | "denied" | "error";

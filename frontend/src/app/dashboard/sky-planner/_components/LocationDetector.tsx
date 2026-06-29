@@ -1,53 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useAstroStore } from "@/stores/astrowatch";
-import { reverseGeocode } from "@/lib/geocode";
-
-// fallback if user denies location permission
-const DEFAULT_LOCATION = {
-  lat: 34.18,
-  lng: -118.31,
-  name: "Burbank, CA",
-};
-
-type Status = "detecting" | "detected" | "denied" | "error";
+import { LocationStatus } from "@/types";
 
 export default function LocationDetector() {
-  const { location, setLocation } = useAstroStore();
-  const [status, setStatus] = useState<Status>("detecting");
-
-  async function detect() {
-    setStatus("detecting");
-
-    // browser doesn't support geolocation
-    if (!navigator.geolocation) {
-      setLocation(DEFAULT_LOCATION);
-      setStatus("error");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      // ── success ──
-      async (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        const name = await reverseGeocode(lat, lng);
-        setLocation({ lat, lng, name });
-        setStatus("detected");
-      },
-      // ── denied / error ──
-      () => {
-        setLocation(DEFAULT_LOCATION);
-        setStatus("denied");
-      },
-      { timeout: 8000, maximumAge: 300_000 },
-    );
-  }
-
-  // run once on mount
-  useEffect(() => {
-    detect();
-  }, []);
+  const { location, locationStatus, fetchLocation } = useAstroStore();
 
   return (
     <div className="mb-5">
@@ -65,14 +22,14 @@ export default function LocationDetector() {
         {/* icon — changes per status */}
         <div
           className={`w-8 h-8 rounded-lg flex items-center
-          justify-center flex-shrink-0 ${iconBg(status)}`}
+          justify-center flex-shrink-0 ${iconBg(locationStatus)}`}
         >
-          <StatusIcon status={status} />
+          <StatusIcon status={locationStatus} />
         </div>
 
         {/* text */}
         <div className="flex-1 min-w-0">
-          {status === "detecting" ? (
+          {locationStatus === "detecting" ? (
             <>
               <div
                 className="h-3 w-24 bg-white/10
@@ -87,16 +44,16 @@ export default function LocationDetector() {
             <>
               <p
                 className="text-[13px] font-medium
-                text-white truncate"
+                text-white"
               >
                 {location?.name}
               </p>
               <p className="text-[11px] text-white/30 mt-0.5">
-                {status === "denied" || status === "error" ? (
+                {locationStatus === "denied" || locationStatus === "error" ? (
                   <span className="text-red-400/70">
                     Using default ·{" "}
                     <button
-                      onClick={detect}
+                      onClick={fetchLocation}
                       className="underline hover:text-red-300
                         transition-colors"
                     >
@@ -117,8 +74,7 @@ export default function LocationDetector() {
 }
 
 // ── helpers ────────────────────────────────────────
-
-function iconBg(status: Status): string {
+function iconBg(status: LocationStatus): string {
   switch (status) {
     case "detecting":
       return "bg-aw-purple/15";
@@ -130,7 +86,7 @@ function iconBg(status: Status): string {
   }
 }
 
-function StatusIcon({ status }: { status: Status }) {
+function StatusIcon({ status }: { status: LocationStatus }) {
   switch (status) {
     case "detecting":
       return (
