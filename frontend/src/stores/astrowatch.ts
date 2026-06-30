@@ -5,6 +5,7 @@ import type {
   SatellitePass,
   WeatherData,
   SavedSatellite,
+  WeatherApiResponse,
 } from "@/types";
 import { DEFAULT_LOCATION } from "@/consts";
 
@@ -28,19 +29,24 @@ interface AstroStore {
   isLoadingWeather: boolean;
   setWeather: (w: WeatherData) => void;
   setLoadingWeather: (b: boolean) => void;
+  //weather open-meteo response
+  weatherOm: WeatherApiResponse | null;
+  setWeatherOm: (w: WeatherApiResponse) => void;
   //saved satellite
   savedSatellites: SavedSatellite[];
-  savedPasses: SatellitePass[];
   isLoadingSaved: boolean;
+  setLoadingSaved: (b: boolean) => void;
   setSavedSatellites: (s: SavedSatellite[]) => void;
   addSaved: (s: SavedSatellite) => void;
-  setSavedPasses: (p: SatellitePass[]) => void;
   removeSaved: (noraId: number) => void;
-  setLoadingSaved: (b: boolean) => void;
+  //saved passes
+  savedPasses: SatellitePass[];
+  isLoadingSavedPasses: boolean;
+  setIsLoadingSavedPasses: (b: boolean) => void;
+  setSavedPasses: (p: SatellitePass[]) => void;
   // pass cache — avoids repeat N2YO calls
   passCache: Record<number, SatellitePass[]>;
-  setPassCache: (noradId: number, passes: SatellitePass[]) => void;
-  removePassCache: (noradId: number) => void;
+  setPassCache: (cache: Record<number, SatellitePass[]>) => void;
   clearPassCache: () => void;
 }
 
@@ -84,9 +90,13 @@ export const useAstroStore = create<AstroStore>()((set) => ({
   isLoadingWeather: false,
   setWeather: (w) => set({ weather: w }),
   setLoadingWeather: (b) => set({ isLoadingWeather: b }),
+  weatherOm: null,
+  setWeatherOm: (w) =>
+    set({
+      weatherOm: w,
+    }),
   //saved Satellites
   savedSatellites: [],
-  savedPasses: [],
   isLoadingSaved: false,
   setSavedSatellites: (s) => set({ savedSatellites: s }),
   addSaved: (s) =>
@@ -100,18 +110,13 @@ export const useAstroStore = create<AstroStore>()((set) => ({
       ),
     })),
   setLoadingSaved: (b) => set({ isLoadingSaved: b }),
+  //saved passes
+  savedPasses: [],
+  isLoadingSavedPasses: false,
+  setIsLoadingSavedPasses: (b) => set({ isLoadingSavedPasses: b }),
   setSavedPasses: (p) => set({ savedPasses: p }),
   // pass cache
   passCache: {},
-  setPassCache: (noradId, passes) =>
-    set((state) => ({
-      passCache: { ...state.passCache, [noradId]: passes },
-    })),
-  removePassCache: (noradId) =>
-    set((state) => {
-      const newPassesCache = { ...state.passCache };
-      delete newPassesCache[noradId];
-      return { passCache: { ...newPassesCache } };
-    }),
+  setPassCache: (cache: {}) => set({ passCache: { ...cache } }),
   clearPassCache: () => set({ passCache: {} }),
 }));

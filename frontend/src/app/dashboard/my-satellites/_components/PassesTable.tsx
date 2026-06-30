@@ -19,8 +19,8 @@ type SortKey = "date" | "score" | "elevation" | "satellite";
 type SortDir = "asc" | "desc";
 
 export default function PassTable() {
-  const { savedSatellites, isLoading } = useSavedSatellites();
-  const { savedPasses } = useAstroStore();
+  const { savedSatellites, savedPasses, isLoadingSaved, isLoadingSavedPasses } =
+    useAstroStore();
 
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -91,7 +91,7 @@ export default function PassTable() {
     );
   }
 
-  if (isLoading) {
+  if (isLoadingSaved || isLoadingSavedPasses) {
     return <TableSkeleton />;
   }
 

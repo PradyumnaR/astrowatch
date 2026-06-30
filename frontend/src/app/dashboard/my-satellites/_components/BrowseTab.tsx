@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAstroStore } from "@/stores/astrowatch";
 import type { CelestrakSatellite, SavedSatellite } from "@/types";
+import { useSavedSatellites } from "@/hooks/useSavedSatellites";
 
 const CATEGORIES = [
   { key: "stations", label: "Stations" },
@@ -14,14 +15,8 @@ const CATEGORIES = [
 ];
 
 export default function BrowseTab() {
-  const {
-    savedSatellites,
-    addSaved,
-    setPassCache,
-    savedPasses,
-    setSavedPasses,
-    location,
-  } = useAstroStore();
+  const { savedSatellites } = useAstroStore();
+  const { handleSaveSat } = useSavedSatellites();
 
   const [category, setCategory] = useState("stations");
   const [query, setQuery] = useState("");
@@ -56,10 +51,16 @@ export default function BrowseTab() {
       if (q) params.set("q", q);
 
       const res = await fetch(`/api/satellites/search?${params}`);
+      console.log(res);
+      if (!res.ok) {
+        setResults([]);
+        return;
+      }
       const data = (await res.json()) as CelestrakSatellite[];
       setResults(data);
     } catch (err) {
-      console.error("Browse fetch failed:", err);
+      console.error(`Failed to fetch satellites for ${category}`, err);
+      setResults([]);
     } finally {
       setIsLoading(false);
     }
@@ -72,26 +73,10 @@ export default function BrowseTab() {
   async function handleSave(sat: CelestrakSatellite) {
     if (isSaved(sat.noradId) || savingId === sat.noradId) return;
     setSavingId(sat.noradId);
-
     try {
-      const res = await fetch("/api/saved-satellites", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          noradId: sat.noradId,
-          satName: sat.satName,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to save");
-
-      const saved = (await res.json()) as SavedSatellite;
-      // 2 — add to Zustand store immediately
-      addSaved(saved);
+      handleSaveSat(sat);
     } catch (err) {
-      console.error("Save failed:", err);
+      console.log("Failed to save satellite", sat);
     } finally {
       setSavingId(null);
     }

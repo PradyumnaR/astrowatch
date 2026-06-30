@@ -1,145 +1,45 @@
-import { useEffect, useRef } from "react";
-import { computeScore } from "@/lib/viewing-score";
-import { getWeatherAtHour } from "@/lib/getWeatherAtHour";
-import { getMoonPhase } from "@/lib/moon";
 import { useAstroStore } from "@/stores/astrowatch";
-import type {
-  SavedSatellite,
-  SatellitePass,
-  WeatherApiResponse,
-} from "@/types";
+import { SavedSatellite, CelestrakSatellite, SatellitePass } from "@/types";
+import { getWeatherAtHour } from "@/lib/getWeatherAtHour";
+import { computeScore } from "@/lib/viewing-score";
+import { useEffect } from "react";
 
 export function useSavedSatellites() {
   const {
-    savedSatellites,
-    setSavedSatellites,
-    isLoadingSaved,
-    setLoadingSaved,
     savedPasses,
-    setSavedPasses,
     passCache,
+    setSavedSatellites,
+    addSaved,
+    removeSaved,
+    setLoadingSaved,
+    setSavedPasses,
+    setIsLoadingSavedPasses,
     setPassCache,
+    weatherOm,
+    setWeatherOm,
     location,
   } = useAstroStore();
 
-  // ref to prevent duplicate Supabase fetches
-  // when multiple components call this hook
-  const hasFetchedRef = useRef(false);
+  async function initSavedSatAndPasses() {
+    await fetchWeather();
+    await fetchSavedSats();
 
-  useEffect(() => {
-    // already fetched or in progress → skip
-    if (hasFetchedRef.current) return;
-    if (isLoadingSaved) return;
-    if (savedSatellites.length > 0) return;
-
-    hasFetchedRef.current = true;
-    async function fetchSaved() {
-      setLoadingSaved(true);
-      try {
-        const res = await fetch("/api/saved-satellites");
-        const data = (await res.json()) as SavedSatellite[];
-        setSavedSatellites(data);
-      } catch (err) {
-        console.error("Failed to fetch saved satellites:", err);
-      } finally {
-        setLoadingSaved(false);
-      }
+    const latestSavedSats = useAstroStore.getState().savedSatellites;
+    for (const sat of latestSavedSats) {
+      await fetchAndSavePasses(sat);
     }
+  }
 
-    fetchSaved();
-  }, []);
-
-  // ── Step 2: watch savedSatellites + location
-  // handles initial load, add satellite, remove satellite
-  useEffect(() => {
-    if (!location) return;
-    if (savedSatellites.length === 0) {
-      // all removed — clear savedPasses
-      setSavedPasses([]);
-      return;
-    }
-
-    syncPasses();
-  }, [savedSatellites.length, location?.lat, location?.lng]);
-
-  async function syncPasses() {
-    if (!location) return;
-
-    // find satellites not in passCache
-    const missing = savedSatellites.filter(
-      (s) => !passCache[s.noradId] || passCache[s.noradId].length === 0,
-    );
-
+  async function fetchSavedSats() {
+    setLoadingSaved(true);
     try {
-      await buildPasses(missing);
+      const res = await fetch("/api/saved-satellites");
+      const data = (await res.json()) as SavedSatellite[];
+      setSavedSatellites(data);
+    } catch (err) {
+      console.error("Failed to fetch saved satellites:", err);
     } finally {
       setLoadingSaved(false);
-    }
-  }
-
-  async function buildPasses(satellites: SavedSatellite[]) {
-    const weatherRes = await fetchWeather();
-    const hourly = weatherRes?.hourly;
-
-    if (!hourly) return;
-
-    const allPromises = satellites.map(async (s) => {
-      try {
-        const rawPasses = await fetchPasses(s);
-        const enrichedPasses = rawPasses.map((p: SatellitePass) => {
-          const {
-            cloudCover,
-            temperature,
-            moonIllumination,
-            moonPhase,
-            windSpeed,
-            bortle,
-          } = getWeatherAtHour(
-            hourly.time,
-            hourly.cloudCover,
-            hourly.temperature,
-            hourly.windSpeed,
-            p.startUTC,
-          );
-
-          return {
-            ...p,
-            cloudCover,
-            temperature,
-            windSpeed,
-            moonPhase,
-            moonIllumination,
-            viewingScore: computeScore(
-              p.maxEl,
-              cloudCover,
-              moonIllumination,
-              bortle,
-            ),
-          };
-        });
-        setPassCache(s.noradId, enrichedPasses);
-        return enrichedPasses;
-      } catch (err) {
-        console.log("Failed to fetch missing passes", err);
-      }
-    });
-
-    const all = (await Promise.all(allPromises)).flat();
-    setSavedPasses([...savedPasses, ...all]);
-  }
-
-  async function fetchPasses(sat: SavedSatellite) {
-    if (!location) return;
-    try {
-      const res = await fetch(
-        `/api/passes?id=${sat.noradId}` +
-          `&lat=${location.lat}` +
-          `&lng=${location.lng}&days=7`,
-      );
-      const data = await res.json();
-      return data;
-    } catch (err) {
-      console.error(`Failed to fetch passes for ${sat.satName}:`, err);
     }
   }
 
@@ -151,29 +51,138 @@ export function useSavedSatellites() {
         `/api/weather?lat=${location.lat}&lng=${location.lng}`,
       );
       const wx = await res.json();
-      return wx;
+      setWeatherOm(wx);
     } catch (err) {
       console.error("Weather fetch failed:", err);
     }
   }
 
-  // ── instant remove — no waiting for useEffect
-  function handleRemove(noradId: number) {
-    const latestCache = useAstroStore.getState().passCache;
-    const remaining = useAstroStore
-      .getState()
-      .savedSatellites.filter((s) => s.noradId !== noradId);
+  async function handleSaveSat(sat: CelestrakSatellite) {
+    try {
+      const res = await fetch("/api/saved-satellites", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          noradId: sat.noradId,
+          satName: sat.satName,
+        }),
+      });
 
-    const updated = remaining
-      .flatMap((s) => latestCache[s.noradId] ?? [])
+      if (!res.ok) throw new Error("Failed to save");
+
+      const saved = (await res.json()) as SavedSatellite;
+      // 2 — add to Zustand store immediately
+      addSaved(saved);
+      await fetchAndSavePasses(saved);
+    } catch (err) {
+      console.error("Save failed:", err);
+    }
+  }
+
+  async function fetchAndSavePasses(sat: SavedSatellite) {
+    const latestWeatherOm = useAstroStore.getState().weatherOm;
+    const latestPassCache = useAstroStore.getState().passCache;
+    const latestSavedPasses = useAstroStore.getState().savedPasses;
+
+    if (!location) return;
+    if (!latestWeatherOm?.hourly) return;
+
+    const hourly = latestWeatherOm.hourly;
+
+    if (
+      !hourly?.time ||
+      !hourly?.cloudCover ||
+      !hourly.temperature ||
+      !hourly.windSpeed
+    ) {
+      throw new Error("Hourly weather data missing");
+    }
+    try {
+      setIsLoadingSavedPasses(true);
+      const res = await fetch(
+        `/api/passes?id=${sat.noradId}` +
+          `&lat=${location.lat}` +
+          `&lng=${location.lng}&days=7`,
+      );
+      const rawPasses = await res.json();
+
+      const enrichedPasses = rawPasses.map((p: SatellitePass) => {
+        const {
+          cloudCover,
+          temperature,
+          moonIllumination,
+          moonPhase,
+          windSpeed,
+          bortle,
+        } = getWeatherAtHour(
+          hourly.time,
+          hourly.cloudCover,
+          hourly.temperature,
+          hourly.windSpeed,
+          p.startUTC,
+        );
+
+        return {
+          ...p,
+          cloudCover,
+          temperature,
+          windSpeed,
+          moonPhase,
+          moonIllumination,
+          viewingScore: computeScore(
+            p.maxEl,
+            cloudCover,
+            moonIllumination,
+            bortle,
+          ),
+        };
+      });
+      setPassCache({ ...latestPassCache, [sat.noradId]: [...enrichedPasses] });
+      setSavedPasses(
+        [...latestSavedPasses, ...enrichedPasses].sort(
+          (a, b) => a.startUTC - b.startUTC,
+        ),
+      );
+    } catch (err) {
+      console.error(`Failed to fetch passes for ${sat.satName}:`, err);
+    } finally {
+      setIsLoadingSavedPasses(false);
+    }
+  }
+
+  async function handleRemoveSat(sat: SavedSatellite) {
+    console.log(sat);
+    try {
+      const res = await fetch(`/api/saved-satellites/${sat.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to remove");
+      removeSaved(sat.noradId);
+      handleRemovePass(sat.noradId);
+    } catch (err) {
+      console.error("Failed to remove saved satellite", err);
+    }
+  }
+
+  // ── instant remove — no waiting for useEffect
+  function handleRemovePass(noradId: number) {
+    const latestPassCache = useAstroStore.getState().passCache;
+    const latestSavedPasses = useAstroStore.getState().savedPasses;
+    const updated = latestSavedPasses
+      .filter((p) => p.satid != noradId)
       .sort((a, b) => a.startUTC - b.startUTC);
 
     setSavedPasses(updated);
+    //removing cached pass.
+    const newPassesCache = { ...latestPassCache };
+    delete newPassesCache[noradId];
+    setPassCache({ ...newPassesCache });
   }
-
   return {
-    savedSatellites,
-    isLoading: isLoadingSaved,
-    handleRemove,
+    initSavedSatAndPasses,
+    handleRemoveSat,
+    handleSaveSat,
   };
 }

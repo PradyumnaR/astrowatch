@@ -6,24 +6,11 @@ import { SavedSatellite } from "@/types";
 import { SAT_COLORS, DEFAULT_COLOR } from "@/consts";
 
 export default function MySatellitesTab() {
-  const { savedSatellites, isLoadingSaved, removeSaved } = useAstroStore();
-  const { handleRemove } = useSavedSatellites();
+  const { savedSatellites, isLoadingSaved, isLoadingSavedPasses, removeSaved } =
+    useAstroStore();
+  const { handleRemoveSat } = useSavedSatellites();
 
-  async function handleRemoveSat(sat: SavedSatellite) {
-    console.log(sat);
-    try {
-      const res = await fetch(`/api/saved-satellites/${sat.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Failed to remove");
-      removeSaved(sat.noradId);
-      handleRemove(sat.noradId);
-    } catch (err) {
-      console.error("Remove failed:", err);
-    }
-  }
-
-  if (isLoadingSaved) {
+  if (isLoadingSaved || isLoadingSavedPasses) {
     return (
       <div className="flex flex-col gap-2 pt-1">
         {[1, 2, 3].map((i) => (

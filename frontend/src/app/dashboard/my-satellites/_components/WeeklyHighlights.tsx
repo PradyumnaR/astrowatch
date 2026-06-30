@@ -1,14 +1,12 @@
 "use client";
 
-import { useSavedSatellites } from "@/hooks/useSavedSatellites";
 import { useAstroStore } from "@/stores/astrowatch";
 import type { SatellitePass } from "@/types";
 import { formatPassTime } from "@/lib/formatPassTime";
 import { SAT_COLORS, DEFAULT_COLOR } from "@/consts";
 
 export default function WeeklyHighlights() {
-  const { savedSatellites } = useSavedSatellites();
-  const { savedPasses } = useAstroStore();
+  const { savedPasses, savedSatellites } = useAstroStore();
 
   // ── empty states ──────────────────────────────────
 
