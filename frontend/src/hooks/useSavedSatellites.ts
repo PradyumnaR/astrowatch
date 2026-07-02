@@ -61,7 +61,7 @@ export function useSavedSatellites() {
         },
         body: JSON.stringify({
           noradId: sat.noradId,
-          satName: sat.satName,
+          satname: sat.satname,
         }),
       });
 
@@ -137,7 +137,7 @@ export function useSavedSatellites() {
         ),
       );
     } catch (err) {
-      console.error(`Failed to fetch passes for ${sat.satName}:`, err);
+      console.error(`Failed to fetch passes for ${sat.satname}:`, err);
     } finally {
       setIsLoadingSavedPasses(false);
     }

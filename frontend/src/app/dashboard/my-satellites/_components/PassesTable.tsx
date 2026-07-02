@@ -56,7 +56,7 @@ export default function PassTable() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           noradId: pass.satid,
-          satName: pass.satname,
+          satname: pass.satname,
           startUTC: pass.startUTC,
           passData: pass,
         }),

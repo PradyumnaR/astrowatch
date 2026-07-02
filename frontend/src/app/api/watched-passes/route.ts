@@ -29,7 +29,7 @@ export async function GET() {
     const passes = future.map((row) => ({
       id: row.id,
       noradId: row.norad_id,
-      satName: row.sat_name,
+      satname: row.sat_name,
       startUTC: row.start_utc,
       passData: row.pass_data,
       savedAt: row.saved_at,
@@ -52,11 +52,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { noradId, satName, startUTC, passData } = await req.json();
+    const { noradId, satname, startUTC, passData } = await req.json();
 
-    if (!noradId || !satName || !startUTC || !passData) {
+    if (!noradId || !satname || !startUTC || !passData) {
       return NextResponse.json(
-        { error: "noradId, satName, startUTC, passData required" },
+        { error: "noradId, satname, startUTC, passData required" },
         { status: 400 },
       );
     }
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       .insert({
         clerk_user_id: userId,
         norad_id: noradId,
-        sat_name: satName,
+        sat_name: satname,
         start_utc: startUTC,
         pass_data: passData,
       })
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       id: data.id,
       noradId: data.norad_id,
-      satName: data.sat_name,
+      satname: data.sat_name,
       startUTC: data.start_utc,
       passData: data.pass_data,
       savedAt: data.saved_at,

@@ -73,7 +73,7 @@ export default function MySatellitesTab() {
               className="text-[12px] font-medium
               text-white truncate"
             >
-              {sat.satName}
+              {sat.satname}
             </p>
             <p className="text-[10px] text-white/25 mt-0.5">#{sat.noradId}</p>
           </div>
@@ -83,7 +83,7 @@ export default function MySatellitesTab() {
             onClick={() => handleRemoveSat(sat)}
             className="text-white/15 hover:text-red-400
               transition-colors flex-shrink-0 p-1 rounded"
-            aria-label={`Remove ${sat.satName}`}
+            aria-label={`Remove ${sat.satname}`}
           >
             ✕
           </button>

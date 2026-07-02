@@ -28,7 +28,7 @@ export async function GET() {
     const satellites = data.map((row) => ({
       id: row.id,
       noradId: row.norad_id,
-      satName: row.sat_name,
+      satname: row.sat_name,
       savedAt: row.saved_at,
     }));
 
@@ -48,11 +48,11 @@ export async function POST(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const { noradId, satName } = await req.json();
+    const { noradId, satname } = await req.json();
 
-    if (!noradId || !satName) {
+    if (!noradId || !satname) {
       return NextResponse.json(
-        { error: "noradId and satName required" },
+        { error: "noradId and satname required" },
         { status: 400 },
       );
     }
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       .insert({
         clerk_user_id: userId,
         norad_id: noradId,
-        sat_name: satName,
+        sat_name: satname,
       })
       .select()
       .single();
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       id: data.id,
       noradId: data.norad_id,
-      satName: data.sat_name,
+      satname: data.sat_name,
       savedAt: data.saved_at,
     });
   } catch (err) {

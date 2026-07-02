@@ -56,7 +56,7 @@ export interface SavedSatellite {
 
 export interface CelestrakSatellite {
   noradId: number;
-  satName: string;
+  satname: string;
   category: string;
 }
 

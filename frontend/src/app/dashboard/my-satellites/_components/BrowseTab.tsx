@@ -186,7 +186,7 @@ export default function BrowseTab() {
                     className="text-[12px] font-medium text-white
                     truncate"
                   >
-                    {sat.satName}
+                    {sat.satname}
                   </p>
                   <p className="text-[10px] text-white/25">
                     #{sat.noradId} · {sat.category}

@@ -102,9 +102,9 @@ async function fetchFromCelestrak(
 
   const data = (await res.json()) as CelestrakSatellite[];
 
-  return data.map((rec) => ({
+  return data.map((rec: any) => ({
     noradId: rec.NORAD_CAT_ID,
-    satName: rec.OBJECT_NAME,
+    satname: rec.OBJECT_NAME,
     category: CATEGORY_LABELS[category] ?? category,
   }));
 }
@@ -149,7 +149,7 @@ export async function GET(req: Request) {
     const filtered = query
       ? satellites.filter(
           (s) =>
-            s.satName.toLocaleLowerCase().includes(query) ||
+            s.satname.toLocaleLowerCase().includes(query) ||
             s.noradId.toString().includes(query),
         )
       : satellites;
@@ -160,7 +160,7 @@ export async function GET(req: Request) {
     console.log("Failed to fetch satellites by category", err);
     return NextResponse.json(
       {
-        error: err?.message,
+        error: err,
         message: "Failed to fetch satellites by category",
       },
       { status: 500 },
