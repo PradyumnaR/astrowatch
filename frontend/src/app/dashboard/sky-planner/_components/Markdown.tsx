@@ -91,6 +91,47 @@ export default function Markdown({ text }: { text: string }) {
             {children}
           </blockquote>
         ),
+        // add table components
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-2">
+            <table
+              className="w-full border-collapse
+          text-[12px]"
+            >
+              {children}
+            </table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead className="border-b border-aw-border">{children}</thead>
+        ),
+        tbody: ({ children }) => <tbody>{children}</tbody>,
+        tr: ({ children }) => (
+          <tr
+            className="border-b border-aw-border/50
+        last:border-0"
+          >
+            {children}
+          </tr>
+        ),
+        th: ({ children }) => (
+          <th
+            className="text-left py-1.5 px-3
+        text-[10px] font-medium uppercase
+        tracking-widest text-white/30
+        first:pl-0"
+          >
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td
+            className="py-1.5 px-3
+        text-white/70 first:pl-0"
+          >
+            {children}
+          </td>
+        ),
       }}
     >
       {text}

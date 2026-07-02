@@ -73,7 +73,7 @@ export default function ChatPanel() {
             justify-center h-full gap-3 text-center"
           >
             <p className="text-white/20 text-sm">
-              Ask anything about tonight's passes
+              Ask anything about selected passes
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
               {SUGGESTIONS.map((s) => (

@@ -37,6 +37,7 @@ export interface WeatherData {
   moonPhase: string;
   moonIllumination: number;
   bortle: number;
+  mag: number;
 }
 
 export interface WeatherApiResponse {

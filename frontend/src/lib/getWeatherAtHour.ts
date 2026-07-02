@@ -11,6 +11,7 @@ export function getWeatherAtHour(
   temperature: number[],
   windSpeed: number[],
   startUTC: number,
+  mag: number,
 ): WeatherData {
   const date = new Date(startUTC * 1000);
   const day = date.getDate();
@@ -31,11 +32,13 @@ export function getWeatherAtHour(
     moonPhase,
     moonIllumination,
     bortle: DefaultBortle,
+    mag, // to be removed
     viewingScore: computeScore(
       maxEl,
       cloudCover[idx] ?? 20,
       moonIllumination,
       DefaultBortle,
+      mag,
     ),
   };
 }

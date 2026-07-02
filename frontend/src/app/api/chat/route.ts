@@ -26,6 +26,7 @@ function buildSystemPrompt(
 - Duration  : ${Math.round(selectedPass.duration / 60)} min
 - Direction : rises ${selectedPass.startAzCompass}
 - Score     : ${selectedPass.viewingScore?.toFixed(1) ?? "N/A"}
+- Satellite brightness: ${selectedPass.mag}
   `
     : "No pass selected";
 
@@ -39,6 +40,9 @@ function buildSystemPrompt(
     Current context:
     - Observer location : ${locationCtx}
     - ${passCtx}
+    - Satellite brightness: Scale will be between -4.0 to 6.0. 
+      Lower the value more brighter the satellite. Higher the value less brighter to the human eye. 
+      If value is 100,000 brightness of the satellite pass is unknow
     
     When answering questions about visibility, use the
     viewing score and elevation to give honest advice.

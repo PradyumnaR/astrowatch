@@ -118,6 +118,7 @@ export function useSavedSatellites() {
           hourly.temperature,
           hourly.windSpeed,
           p.startUTC,
+          p.mag,
         );
 
         return {

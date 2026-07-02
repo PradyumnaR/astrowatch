@@ -13,7 +13,8 @@ export default function WeatherPanel() {
     return <WeatherSkeleton />;
   }
 
-  const { cloudCover, temperature, windSpeed, moonPhase, bortle } = weather;
+  const { cloudCover, temperature, windSpeed, moonPhase, bortle, mag } =
+    weather;
 
   return (
     <div className="flex flex-col gap-5">
@@ -61,6 +62,12 @@ export default function WeatherPanel() {
             icon="💨"
             label="Wind"
             value={`${Math.round(windSpeed)} mph`}
+          />
+
+          <ConditionRow
+            icon="🛰️"
+            label="Satellite birghtness"
+            value={`${mag}`}
           />
         </div>
       </section>

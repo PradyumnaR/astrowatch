@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useAstroStore } from "@/stores/astrowatch";
-import { computeScore } from "@/lib/viewing-score";
 import { getWeatherAtHour } from "@/lib/getWeatherAtHour";
 import PassItem from "./PassItem";
 import type { SatellitePass } from "@/types";
@@ -118,6 +117,7 @@ export default function PassList() {
               hourly.temperature,
               hourly.windSpeed,
               p.startUTC,
+              p.mag,
             );
 
             return {
@@ -148,6 +148,7 @@ export default function PassList() {
             moonPhase: best.moonPhase ?? "Unknown",
             moonIllumination: best.moonIllumination ?? 0.3,
             bortle: 5,
+            mag: best.mag,
           });
         }
       } catch (err) {
@@ -172,6 +173,7 @@ export default function PassList() {
       moonPhase: pass.moonPhase ?? "Unknown",
       moonIllumination: pass.moonIllumination ?? 0.3,
       bortle: 5,
+      mag: pass.mag,
     });
   };
 
