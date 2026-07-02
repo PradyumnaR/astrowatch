@@ -14,7 +14,7 @@ export default function SkyPlannerPage({}) {
       </aside>
 
       {/* Main content */}
-      <main className="overflow-y-auto p-4">
+      <main className="overflow-y-auto p-4 min-w-[300px]">
         <SkyCanvas />
         <ChatPanel />
       </main>

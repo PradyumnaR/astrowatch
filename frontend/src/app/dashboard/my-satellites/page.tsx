@@ -35,7 +35,7 @@ export default function MySatellitesPage({}) {
         <SidebarTabs />
       </aside>
       {/* main */}
-      <main className="overflow-y-auto p-4">
+      <main className="overflow-y-auto p-4 min-w-[300px]">
         <PassTable />
       </main>
 
