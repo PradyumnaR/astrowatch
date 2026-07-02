@@ -1,6 +1,8 @@
 import type { SatellitePass } from "@/types";
 import ScoreBadge from "@/components/ScoreBadge";
 import { formatPassTime } from "@/lib/formatPassTime";
+import { useAstroStore } from "@/stores/astrowatch";
+import { useMemo } from "react";
 
 export default function PassItem({
   pass,
@@ -11,6 +13,9 @@ export default function PassItem({
   isSelected: boolean;
   onClick: () => void;
 }) {
+  const { location } = useAstroStore();
+  const timezone = useMemo(() => location?.timezone, [location?.timezone]);
+
   return (
     <button
       onClick={onClick}
@@ -39,7 +44,7 @@ export default function PassItem({
       {/* time · elevation · duration */}
       <div className="flex gap-2.5">
         <span className="text-[11px] text-white/30">
-          ⏱ {formatPassTime(pass.startUTC)}
+          ⏱ {formatPassTime(pass.startUTC, timezone || "")}
         </span>
         <span className="text-[11px] text-white/30">↑ {pass.maxEl}°</span>
         <span className="text-[11px] text-white/30">

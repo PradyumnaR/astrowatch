@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAstroStore } from "@/stores/astrowatch";
 import {
   Table,
@@ -19,14 +19,21 @@ type SortKey = "date" | "score" | "elevation" | "satellite";
 type SortDir = "asc" | "desc";
 
 export default function PassTable() {
-  const { savedSatellites, savedPasses, isLoadingSaved, isLoadingSavedPasses } =
-    useAstroStore();
+  const {
+    savedSatellites,
+    savedPasses,
+    isLoadingSaved,
+    isLoadingSavedPasses,
+    location,
+  } = useAstroStore();
 
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   // add to PassTable state
   const [watchedKeys, setWatchedKeys] = useState<Set<string>>(new Set());
   const [watchingId, setWatchingId] = useState<string | null>(null);
+
+  const timeZone = useMemo(() => location?.timezone, [location?.timezone]);
 
   useEffect(() => {
     async function fetchWatched() {
@@ -104,7 +111,8 @@ export default function PassTable() {
   });
 
   function handleEmail(pass: (typeof sorted)[0]) {
-    const time = formatPassTime(pass.startUTC);
+    if (!location) return;
+    const time = formatPassTime(pass.startUTC, timeZone || "");
     const subject = encodeURIComponent(
       `AstroWatch — ${pass.satname} pass ${time}`,
     );
@@ -268,7 +276,7 @@ export default function PassTable() {
                   className="text-[12px]
                   text-white/60"
                 >
-                  {formatPassTime(pass.startUTC)}
+                  {formatPassTime(pass.startUTC, timeZone || "")}
                 </TableCell>
 
                 {/* score */}
@@ -327,7 +335,7 @@ export default function PassTable() {
                         <button
                           onClick={() => handleWatch(pass)}
                           disabled={watched || !!loading}
-                          className={`flex items-center gap-1.5 text-[10px] border rounded-full px-2.5 py-1 transition-colors ${
+                          className={`cursor-pointer flex items-center gap-1.5 text-[10px] border rounded-full px-2.5 py-1 transition-colors ${
                             watched
                               ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 cursor-default"
                               : loading

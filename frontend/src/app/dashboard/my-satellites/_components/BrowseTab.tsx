@@ -197,7 +197,7 @@ export default function BrowseTab() {
                 <button
                   onClick={() => handleSave(sat)}
                   disabled={saved || saving}
-                  className={`flex-shrink-0 flex items-center
+                  className={`cursor-pointer flex-shrink-0 flex items-center
                     gap-1 px-2.5 py-1 rounded-full text-[10px]
                     font-medium border transition-colors
                     ${

@@ -13,4 +13,5 @@ export const DEFAULT_LOCATION = {
   lat: 34.18,
   lng: -118.31,
   name: "Burbank, CA",
+  timezone: "America/Los_Angeles",
 };

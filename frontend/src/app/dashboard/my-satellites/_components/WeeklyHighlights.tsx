@@ -4,9 +4,12 @@ import { useAstroStore } from "@/stores/astrowatch";
 import type { SatellitePass } from "@/types";
 import { formatPassTime } from "@/lib/formatPassTime";
 import { SAT_COLORS, DEFAULT_COLOR } from "@/consts";
+import { useMemo } from "react";
+import { time } from "console";
 
 export default function WeeklyHighlights() {
-  const { savedPasses, savedSatellites } = useAstroStore();
+  const { savedPasses, savedSatellites, location } = useAstroStore();
+  const timezone = useMemo(() => location?.timezone, [location?.timezone]);
 
   // ── empty states ──────────────────────────────────
 
@@ -76,7 +79,11 @@ export default function WeeklyHighlights() {
 
         <div>
           {highlights.map((pass) => (
-            <HighlightCard key={pass.satid} pass={pass} />
+            <HighlightCard
+              key={pass.satid}
+              pass={pass}
+              timezone={timezone || ""}
+            />
           ))}
         </div>
       </div>
@@ -108,7 +115,13 @@ export default function WeeklyHighlights() {
 
 // ── sub-components ────────────────────────────────────
 
-function HighlightCard({ pass }: { pass: SatellitePass }) {
+function HighlightCard({
+  pass,
+  timezone,
+}: {
+  pass: SatellitePass;
+  timezone: string;
+}) {
   const color = SAT_COLORS[pass.satid] ?? DEFAULT_COLOR;
   const score = pass.viewingScore ?? 0;
 
@@ -128,7 +141,10 @@ function HighlightCard({ pass }: { pass: SatellitePass }) {
 
       {/* rows */}
       <div className="flex flex-col gap-1.5">
-        <CardRow label="Best pass" value={formatPassTime(pass.startUTC)} />
+        <CardRow
+          label="Best pass"
+          value={formatPassTime(pass.startUTC, timezone)}
+        />
 
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-white/30">Score</span>

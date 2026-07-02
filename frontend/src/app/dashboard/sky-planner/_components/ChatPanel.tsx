@@ -60,7 +60,7 @@ export default function ChatPanel() {
     <div
       className="flex flex-col flex-1
       bg-[#0d0d1a] border border-aw-border
-      rounded-xl overflow-hidden min-h-[320px]"
+      rounded-xl overflow-y-scroll min-h-[320px]"
     >
       <div
         className="flex-1 overflow-y-auto

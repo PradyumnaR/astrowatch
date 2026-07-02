@@ -60,7 +60,13 @@ export const useAstroStore = create<AstroStore>()((set) => ({
 
     // browser doesn't support geolocation
     if (!navigator.geolocation) {
-      set({ location: { ...DEFAULT_LOCATION }, locationStatus: "error" });
+      set({
+        location: {
+          ...DEFAULT_LOCATION,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        locationStatus: "error",
+      });
       return;
     }
 
@@ -69,11 +75,23 @@ export const useAstroStore = create<AstroStore>()((set) => ({
       async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
         const name = await reverseGeocode(lat, lng);
-        set({ location: { lat, lng, name }, locationStatus: "detected" });
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        //                ↑ gets browser timezone
+        //                e.g. "America/Los_Angeles"
+        set({
+          location: { lat, lng, name, timezone },
+          locationStatus: "detected",
+        });
       },
       // ── denied / error ──
       () => {
-        set({ location: { ...DEFAULT_LOCATION }, locationStatus: "denied" });
+        set({
+          location: {
+            ...DEFAULT_LOCATION,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          },
+          locationStatus: "denied",
+        });
       },
       { timeout: 8000, maximumAge: 300_000 },
     );

@@ -3,6 +3,7 @@ export interface Location {
   lng: number;
   name: string; //human readonly city name
   alt?: number; //optional altitude in meters
+  timezone: string;
 }
 
 export interface SatellitePass {

@@ -1,21 +1,33 @@
 import { formatTime } from "./formatTime";
 
-export function formatPassTime(utc: number): string {
+function getDateString(date: Date, timezone: string): string {
+  return date.toLocaleDateString("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+export function formatPassTime(utc: number, timezone: string): string {
   const passDate = new Date(utc * 1000);
-  const today = new Date();
+  const now = new Date();
   const tomorrow = new Date();
+  tomorrow.setDate(now.getDate() + 1);
 
-  tomorrow.setDate(today.getDate() + 1);
+  const passStr = getDateString(passDate, timezone);
+  const todayStr = getDateString(now, timezone);
+  const tomorrowStr = getDateString(tomorrow, timezone);
 
-  const isToday = passDate.toDateString() === today.toDateString();
-  const isTomorrow = passDate.toDateString() === tomorrow.toDateString();
+  const isToday = passStr === todayStr;
+  const isTomorrow = passStr === tomorrowStr;
 
   const dateLabel = isToday
     ? "Today"
     : isTomorrow
       ? "Tomorrow"
       : passDate.toLocaleDateString();
-  const timeStr = formatTime(utc);
+  const timeStr = formatTime(utc, timezone);
 
   return `${dateLabel} . ${timeStr}`;
 }

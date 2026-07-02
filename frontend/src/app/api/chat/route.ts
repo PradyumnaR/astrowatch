@@ -2,7 +2,6 @@ import { convertToModelMessages, streamText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { NextResponse } from "next/server";
 import type { SatellitePass, Location } from "@/types";
-import { formatTime } from "@/lib/formatTime";
 import { formatPassTime } from "@/lib/formatPassTime";
 
 const anthropic = createAnthropic({
@@ -17,11 +16,12 @@ function buildSystemPrompt(
     ? `${location.name} (${location.lat.toFixed(2)}°N, 
        ${Math.abs(location.lng).toFixed(2)}°W)`
     : "Unknown location";
+  const timezone = location?.timezone ?? "UTC";
 
   const passCtx = selectedPass
     ? `Selected Pass:
   - - Satellite : ${selectedPass.satname}
-- Time      : ${formatPassTime(selectedPass.startUTC)}
+- Time      : ${formatPassTime(selectedPass.startUTC, timezone)}
 - Max elev. : ${selectedPass.maxEl}°
 - Duration  : ${Math.round(selectedPass.duration / 60)} min
 - Direction : rises ${selectedPass.startAzCompass}
