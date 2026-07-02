@@ -16,7 +16,7 @@ export default function PassItem({
       onClick={onClick}
       className={[
         "w-full text-left rounded-xl p-2.5",
-        "border transition-colors",
+        "border transition-colors cursor-pointer",
         isSelected
           ? "border-aw-purple bg-aw-purple/5"
           : "border-aw-border bg-white/[0.03]" +
@@ -25,9 +25,14 @@ export default function PassItem({
     >
       {/* name + score */}
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[12px] font-medium text-white truncate">
-          {pass.satname}
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[12px] font-medium text-white truncate">
+            {pass.satname}
+          </span>
+          <span className="text-[10px] font-medium text-white/40 truncate">
+            #{pass.satid}
+          </span>
+        </div>
         <ScoreBadge score={pass.viewingScore ?? 0} />
       </div>
 

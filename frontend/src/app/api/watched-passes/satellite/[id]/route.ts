@@ -18,19 +18,21 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    console.log("params=>>", id);
 
     const { error } = await supabase
-      .from("saved_satellites")
+      .from("watched_passes")
       .delete()
-      .eq("norad_id", id)
-      .eq("clerk_user_id", userId); // security — only delete own rows
+      .eq("clerk_user_id", userId)
+      .eq("norad_id", Number(id));
 
     if (error) throw error;
+
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("DELETE saved satellite error:", err);
+    console.error("DELETE watched passes by satellite error:", err);
     return NextResponse.json(
-      { error: "Failed to delete satellite" },
+      { error: "Failed to delete watched passes" },
       { status: 500 },
     );
   }

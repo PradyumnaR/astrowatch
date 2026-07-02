@@ -127,6 +127,7 @@ export async function GET(req: Request) {
       satellites = cached.satellites;
     } else {
       try {
+        console.log("Fetching satellites from Celestrak", category);
         satellites = await fetchFromCelestrak(category);
         // success — update cache for next time
         await setCachedCatalog(category, satellites);

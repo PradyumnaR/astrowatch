@@ -1,11 +1,23 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { SignInButton, SignUpButton, Show, UserButton } from "@clerk/nextjs";
 import NavLink from "./NavLink";
 
 export default function NavBar() {
+  const router = useRouter();
+
+  const handleNavigation = () => {
+    router.push("/dashboard/sky-planner");
+  };
+
   return (
-    <header className="fixed top-0 left-0 z-50 h-[50px] min-w-full bg-[#0d0d1a] border-b border-aw-border px-5 flex items-center gap-4">
+    <header className="fixed top-0 left-0 z-50 h-[50px] min-w-full bg-[#0d0d1a] border-b border-aw-border px-5 flex items-center gap-4 cursor-pointer text-white/80 hover:text-white">
       {/* Logo */}
-      <div className="flex items-center gap-2 text-[15px] font-medium">
+      <div
+        className="flex items-center gap-2 text-[15px] font-medium"
+        onClick={handleNavigation}
+      >
         <div
           className="w-7 h-7 rounded-lg bg-aw-purple/20
             border border-aw-purple/30

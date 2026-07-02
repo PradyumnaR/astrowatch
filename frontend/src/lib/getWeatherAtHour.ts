@@ -1,7 +1,11 @@
 import type { WeatherData } from "@/types";
-import { getMoonPhase } from "./moon";
+import { getMoonPhase } from "@/lib/moon";
+import { computeScore } from "@/lib/viewing-score";
+
+const DefaultBortle = 5;
 
 export function getWeatherAtHour(
+  maxEl: number,
   times: string[],
   cloudCover: number[],
   temperature: number[],
@@ -26,6 +30,12 @@ export function getWeatherAtHour(
     windSpeed: windSpeed[idx] ?? 5,
     moonPhase,
     moonIllumination,
-    bortle: 5,
+    bortle: DefaultBortle,
+    viewingScore: computeScore(
+      maxEl,
+      cloudCover[idx] ?? 20,
+      moonIllumination,
+      DefaultBortle,
+    ),
   };
 }

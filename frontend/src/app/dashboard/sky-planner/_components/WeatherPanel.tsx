@@ -18,7 +18,19 @@ export default function WeatherPanel() {
   return (
     <div className="flex flex-col gap-5">
       <section>
-        <SectionLabel>Viewing conditions</SectionLabel>
+        <SectionLabel>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-medium tracking-widest uppercase text-white/40">
+              Viewing conditions for satellite
+            </span>
+            <span>
+              <span className="font-medium text-white">
+                {selectedPass?.satname}
+              </span>{" "}
+              #{selectedPass?.satid}
+            </span>
+          </div>
+        </SectionLabel>
         <div className="flex flex-col gap-3">
           <ConditionRow icon="☁" label="Cloud cover" value={`${cloudCover}%`}>
             <ProgressBar
@@ -64,11 +76,11 @@ export default function WeatherPanel() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p
+    <div
       className="text-[10px] font-medium tracking-widest
         uppercase text-white/30 mb-2"
     >
       {children}
-    </p>
+    </div>
   );
 }

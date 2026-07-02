@@ -1,13 +1,9 @@
 import { useAstroStore } from "@/stores/astrowatch";
 import { SavedSatellite, CelestrakSatellite, SatellitePass } from "@/types";
 import { getWeatherAtHour } from "@/lib/getWeatherAtHour";
-import { computeScore } from "@/lib/viewing-score";
-import { useEffect } from "react";
 
 export function useSavedSatellites() {
   const {
-    savedPasses,
-    passCache,
     setSavedSatellites,
     addSaved,
     removeSaved,
@@ -15,7 +11,6 @@ export function useSavedSatellites() {
     setSavedPasses,
     setIsLoadingSavedPasses,
     setPassCache,
-    weatherOm,
     setWeatherOm,
     location,
   } = useAstroStore();
@@ -115,8 +110,9 @@ export function useSavedSatellites() {
           moonIllumination,
           moonPhase,
           windSpeed,
-          bortle,
+          viewingScore,
         } = getWeatherAtHour(
+          p.maxEl,
           hourly.time,
           hourly.cloudCover,
           hourly.temperature,
@@ -131,12 +127,7 @@ export function useSavedSatellites() {
           windSpeed,
           moonPhase,
           moonIllumination,
-          viewingScore: computeScore(
-            p.maxEl,
-            cloudCover,
-            moonIllumination,
-            bortle,
-          ),
+          viewingScore,
         };
       });
       setPassCache({ ...latestPassCache, [sat.noradId]: [...enrichedPasses] });
@@ -153,12 +144,20 @@ export function useSavedSatellites() {
   }
 
   async function handleRemoveSat(sat: SavedSatellite) {
-    console.log(sat);
     try {
-      const res = await fetch(`/api/saved-satellites/${sat.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Failed to remove");
+      // const res = await fetch(`/api/saved-satellites/${sat.id}`, {
+      //   method: "DELETE",
+      // });
+      // if (!res.ok) throw new Error("Failed to remove");
+
+      await Promise.all([
+        fetch(`/api/saved-satellites/${sat.noradId}`, {
+          method: "DELETE",
+        }),
+        fetch(`/api/watched-passes/satellite/${sat.noradId}`, {
+          method: "DELETE",
+        }),
+      ]);
       removeSaved(sat.noradId);
       handleRemovePass(sat.noradId);
     } catch (err) {

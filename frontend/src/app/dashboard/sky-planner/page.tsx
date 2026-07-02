@@ -1,7 +1,7 @@
 import ChatPanel from "./_components/ChatPanel";
 import LocationDetector from "./_components/LocationDetector";
 import PassList from "./_components/PassList";
-import SkyCanvas from "./_components/SkyCanvas";
+import SkyCanvas from "./_components/SkyCanvas-v2";
 import WeatherPanel from "./_components/WeatherPanel";
 
 export default function SkyPlannerPage({}) {

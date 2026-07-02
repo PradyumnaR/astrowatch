@@ -29,6 +29,7 @@ export interface SatellitePass {
 
 export interface WeatherData {
   // current conditions for display
+  viewingScore: number;
   cloudCover: number;
   temperature: number;
   windSpeed: number;

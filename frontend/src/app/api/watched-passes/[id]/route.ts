@@ -9,7 +9,7 @@ const supabase = createClient(
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
   try {
     const { userId } = await auth();
@@ -17,20 +17,19 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
-
     const { error } = await supabase
-      .from("saved_satellites")
+      .from("watched_passes")
       .delete()
-      .eq("norad_id", id)
-      .eq("clerk_user_id", userId); // security — only delete own rows
+      .eq("id", params.id)
+      .eq("clerk_user_id", userId);
 
     if (error) throw error;
+
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("DELETE saved satellite error:", err);
+    console.error("DELETE watched pass error:", err);
     return NextResponse.json(
-      { error: "Failed to delete satellite" },
+      { error: "Failed to delete watched pass" },
       { status: 500 },
     );
   }

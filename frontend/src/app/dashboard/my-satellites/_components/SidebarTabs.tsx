@@ -14,7 +14,7 @@ export default function SidebarTabs() {
       <div className="flex gap-1 p-1 rounded-lg bg-white/[0.04] border border-aw-border">
         <button
           onClick={() => setActiveTab("browse")}
-          className={`flex-1 py-1.5 rounded-md
+          className={`cursor-pointer flex-1 py-1.5 rounded-md
             text-[11px] font-medium transition-colors
             ${
               activeTab === "browse"
@@ -26,7 +26,7 @@ export default function SidebarTabs() {
         </button>
         <button
           onClick={() => setActiveTab("my-satellites")}
-          className={`flex-1 py-1.5 rounded-md
+          className={`cursor-pointer flex-1 py-1.5 rounded-md
             text-[11px] font-medium transition-colors
             ${
               activeTab === "my-satellites"

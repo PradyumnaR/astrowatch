@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useSavedSatellites } from "@/hooks/useSavedSatellites";
+import { useEffect, useState } from "react";
 import { useAstroStore } from "@/stores/astrowatch";
 import {
   Table,
@@ -14,6 +13,7 @@ import {
 import { formatPassTime } from "@/lib/formatPassTime";
 import ScoreBadge from "@/components/ScoreBadge";
 import { SAT_COLORS, DEFAULT_COLOR } from "@/consts";
+import { SatellitePass } from "@/types";
 
 type SortKey = "date" | "score" | "elevation" | "satellite";
 type SortDir = "asc" | "desc";
@@ -24,6 +24,51 @@ export default function PassTable() {
 
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  // add to PassTable state
+  const [watchedKeys, setWatchedKeys] = useState<Set<string>>(new Set());
+  const [watchingId, setWatchingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchWatched() {
+      try {
+        const res = await fetch("/api/watched-passes");
+        const data = await res.json();
+        const keys = new Set<string>(
+          data.map((p: any) => `${p.passData.satid}-${p.passData.startUTC}`),
+        );
+        setWatchedKeys(keys);
+      } catch (err) {
+        console.log("Failed to fetch watching passes", err);
+      }
+    }
+
+    fetchWatched();
+  }, [savedSatellites.length]);
+
+  async function handleWatch(pass: SatellitePass) {
+    const key = `${pass.satid}-${pass.startUTC}`;
+    if (watchedKeys.has(key)) return;
+    setWatchingId(key);
+
+    try {
+      await fetch("/api/watched-passes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          noradId: pass.satid,
+          satName: pass.satname,
+          startUTC: pass.startUTC,
+          passData: pass,
+        }),
+      });
+
+      setWatchedKeys((prev) => new Set([...prev, key]));
+    } catch (err) {
+      console.error("Watch failed:", err);
+    } finally {
+      setWatchingId(null);
+    }
+  }
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -259,18 +304,42 @@ export default function PassTable() {
 
                 {/* email */}
                 <TableCell>
-                  <button
-                    onClick={() => handleEmail(pass)}
-                    className="flex items-center gap-1.5
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEmail(pass)}
+                      className="flex items-center gap-1.5
                       text-[10px] text-white/25
                       border border-aw-border
                       rounded-full px-2.5 py-1
                       hover:text-aw-purple
                       hover:border-aw-purple/40
                       transition-colors"
-                  >
-                    ✉ Email
-                  </button>
+                    >
+                      ✉ Email
+                    </button>
+                    {/* watch button */}
+                    {(() => {
+                      const key = `${pass.satid}-${pass.startUTC}`;
+                      const watched = watchedKeys.has(key);
+                      const loading = watchingId === key;
+
+                      return (
+                        <button
+                          onClick={() => handleWatch(pass)}
+                          disabled={watched || !!loading}
+                          className={`flex items-center gap-1.5 text-[10px] border rounded-full px-2.5 py-1 transition-colors ${
+                            watched
+                              ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 cursor-default"
+                              : loading
+                                ? "border-aw-border text-white/20 cursor-wait"
+                                : "border-aw-border text-white/25 hover:text-aw-teal hover:border-aw-teal/40"
+                          }`}
+                        >
+                          {watched ? "★ Watching" : loading ? "..." : "☆ Watch"}
+                        </button>
+                      );
+                    })()}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
