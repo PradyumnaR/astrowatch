@@ -30,7 +30,7 @@ export default function MySatellitesPage({}) {
   }, []);
 
   return (
-    <div className="grid grid-cols-[300px_1fr_300px] h-[calc(100vh-50px)]">
+    <div className="grid grid-cols-[300px_1fr_300px] h-[calc(100dvh-50px)]">
       <aside className="border-r border-aw-border overflow-y-auto p-4">
         <SidebarTabs />
       </aside>
