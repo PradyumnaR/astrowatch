@@ -1,2 +1,8 @@
-.venv
-.env*
+venv/
+__pycache__/
+*.pyc
+.env
+.env.production
+*.egg-info/
+dist/
+.DS_Store
