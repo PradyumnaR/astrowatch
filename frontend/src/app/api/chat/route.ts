@@ -27,6 +27,8 @@ function buildSystemPrompt(
 - Direction : rises ${selectedPass.startAzCompass}
 - Score     : ${selectedPass.viewingScore?.toFixed(1) ?? "N/A"}
 - Satellite brightness: ${selectedPass.mag}
+- Cloud Cover: ${selectedPass.cloudCover}
+- Moon Phase: ${selectedPass.moonPhase}
   `
     : "No pass selected";
 

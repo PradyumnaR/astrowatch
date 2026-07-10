@@ -43,7 +43,7 @@ export function useSavedSatellites() {
 
     try {
       const res = await fetch(
-        `/api/weather?lat=${location.lat}&lng=${location.lng}`,
+        `/api/weather?lat=${location.lat}&lng=${location.lng}&timezone=${location.timezone}`,
       );
       const wx = await res.json();
       setWeatherOm(wx);

@@ -78,7 +78,7 @@ async def insert_chunks_batch(
 
 
 async def search_knowledge(
-    query_embedding: list[float],
+    query_embedding: list[float] | list[int],
     match_threshold: float = 0.5,
     match_count: int = 5,
     filter_source: str | None = None,

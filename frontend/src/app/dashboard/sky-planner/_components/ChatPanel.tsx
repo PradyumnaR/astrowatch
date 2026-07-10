@@ -37,7 +37,7 @@ export default function ChatPanel() {
   const { messages, sendMessage, status } = useChat({ transport });
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    //bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const isLoading = status === "streaming" || status === "submitted";
