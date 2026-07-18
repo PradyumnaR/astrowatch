@@ -1,18 +1,14 @@
-import ReactMarkdown from "react-markdown";
+import { ChatMessage } from "@/types";
 import Markdown from "./Markdown";
 
-export default function MessageBubble({
-  msg,
-}: {
-  msg: { id: string; role: string; parts: { type: string; text?: string }[] };
-}) {
+export default function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === "user";
 
-  // extract text from parts (AI SDK v5+ uses parts not content)
-  const text = msg.parts
-    .filter((p) => p.type === "text")
-    .map((p) => p.text)
-    .join("");
+  // // extract text from parts (AI SDK v5+ uses parts not content)
+  // const text = msg.parts
+  //   .filter((p) => p.type === "text")
+  //   .map((p) => p.text)
+  //   .join("");
 
   return (
     <div
@@ -43,7 +39,7 @@ export default function MessageBubble({
                 : "bg-white/[0.04] text-white/80 border border-aw-border"
             }`}
       >
-        {isUser ? <span>{text}</span> : <Markdown text={text} />}
+        {isUser ? <span>{msg.content}</span> : <Markdown text={msg.content} />}
       </div>
     </div>
   );

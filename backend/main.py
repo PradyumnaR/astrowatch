@@ -1,11 +1,12 @@
-from unittest import result
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+
 import os
 
 from agents.models import (
     ChatRequest,
+    ChatResponse,
     IngestRequest,
     IngestResponse,
     KnowledgeChunk,
@@ -13,6 +14,7 @@ from agents.models import (
     KnowledgeResponse,
 )
 from agents.knowledge import search_knowledge_base
+from agents.chat import chat_with_tools
 from rag.ingest import (
     ingest_nasa_apod,
     ingest_spaceflight_news,
@@ -152,3 +154,33 @@ async def knowledge_agent(request: KnowledgeRequest):
             for chunk in chunks
         ],
     )
+
+
+@app.post("/agents/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    """
+    Chat with Claude using tools.
+
+    POST /agents/chat
+    body: {
+      "messages":     [{"role": "user", "content": "..."}],
+      "location":     { lat, lng, name, timezone },
+      "selectedPass": { satid, satname, maxEl, ... }
+    }
+    """
+    try:
+        result = await chat_with_tools(
+            messages=request.messages,
+            location=request.location,
+            selected_pass=request.selectedPass,
+        )
+
+        return ChatResponse(
+            content=result["content"],
+            toolsUsed=result["toolsUsed"],
+            sources=[],
+        )
+
+    except Exception as e:
+        print(f"Chat error: {e}")
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")

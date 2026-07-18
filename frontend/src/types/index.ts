@@ -63,3 +63,25 @@ export interface CelestrakSatellite {
 }
 
 export type LocationStatus = "detecting" | "detected" | "denied" | "error";
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  toolsUsed?: string[];
+}
+
+export interface KnowledgeChunk {
+  id: string;
+  content: string;
+  source: string;
+  category: string | null;
+  metadata: {
+    title?: string;
+    url?: string;
+    published_at?: string;
+    news_site?: string;
+    date?: string;
+  };
+  similarity: number;
+}

@@ -32,3 +32,37 @@ async def search_knowledge_base(
 
     print(f"Found {len(results)} chunks")
     return results
+
+
+def format_chunks_for_claude(chunks: list[dict]) -> str:
+    """
+    Format knowledge chunks into a string
+    Claude can read and cite in its response.
+    """
+    if not chunks:
+        return "No relevant knowledge found."
+
+    formatted = []
+    for i, chunk in enumerate(chunks, 1):
+        source = chunk.get("source", "unknown")
+        metadata = chunk.get("metadata", {})
+        content = chunk.get("content", "")
+        title = metadata.get("title", "")
+        url = metadata.get("url", "")
+
+        # format source label
+        source_labels = {
+            "nasa_apod": "NASA",
+            "spaceflight_news": "Spaceflight News",
+            "wikipedia": "Wikipedia",
+        }
+        source_label = source_labels.get(source, source)
+
+        formatted.append(
+            f"[{i}] {source_label}"
+            + (f" — {title}" if title else "")
+            + f"\n{content}"
+            + (f"\nSource: {url}" if url else "")
+        )
+
+    return "\n\n".join(formatted)
