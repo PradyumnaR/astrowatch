@@ -64,7 +64,7 @@ export default function RagPanel() {
 
   return (
     <div
-      className="flex flex-col gap-3 pt-3
+      className="flex flex-col gap-3 pt-10
       border-t border-aw-border"
     >
       {/* section label */}
@@ -72,7 +72,7 @@ export default function RagPanel() {
         className="text-[10px] font-medium tracking-widest
         uppercase text-white/25"
       >
-        Knowledge
+        RAG Knowledge Panel
       </p>
 
       {isLoading ? (
