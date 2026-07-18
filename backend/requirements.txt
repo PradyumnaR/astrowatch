@@ -1,8 +1,14 @@
+# build dependencies first
+setuptools>=68.0
+wheel
+
+# core packages in order
+pydantic-core==2.20.1
+pydantic==2.8.2
+
 # runtime
 fastapi==0.115.0
 uvicorn==0.30.6
-pydantic==2.8.2
-pydantic-core==2.20.1
 anthropic==0.34.0
 voyageai==0.4.1
 supabase==2.7.4
@@ -11,4 +17,3 @@ python-dotenv==1.0.1
 
 # dev
 black
-python-dotenv
