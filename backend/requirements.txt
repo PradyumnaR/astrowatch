@@ -1,13 +1,13 @@
-# build dependencies first
+# build dependencies
 setuptools>=68.0
 wheel
 
-# core packages in order
-pydantic-core==2.20.1
-pydantic==2.8.2
+# core packages
+pydantic==2.7.4
+pydantic-core==2.18.4
 
 # runtime
-fastapi==0.115.0
+fastapi==0.111.0
 uvicorn==0.30.6
 anthropic==0.34.0
 voyageai==0.4.1
