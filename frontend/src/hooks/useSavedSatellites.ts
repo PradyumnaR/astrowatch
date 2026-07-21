@@ -65,6 +65,7 @@ export function useSavedSatellites() {
         }),
       });
 
+      if (res.status === 403) return "limit_reached";
       if (!res.ok) throw new Error("Failed to save");
 
       const saved = (await res.json()) as SavedSatellite;

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { auth } from "@clerk/nextjs/server";
+import { getUserLimits } from "@/lib/server/user";
+import { isAtSatelliteLimitServer } from "@/lib/server/satellites";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -54,6 +56,21 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "noradId and satname required" },
         { status: 400 },
+      );
+    }
+
+    // get plan + limits in one call
+    const { satelliteLimit } = await getUserLimits(userId);
+    // check limit
+    const atLimit = await isAtSatelliteLimitServer(userId, satelliteLimit);
+
+    if (atLimit) {
+      return NextResponse.json(
+        {
+          error: "limit_reached",
+          message: `You have reached the ${satelliteLimit} satellite limit.`,
+        },
+        { status: 403 },
       );
     }
 

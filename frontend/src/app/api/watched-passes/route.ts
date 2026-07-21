@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { auth } from "@clerk/nextjs/server";
+import { getUserLimits } from "@/lib/server/user";
+import { isAtPassLimitServer } from "@/lib/server/passes";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -58,6 +60,21 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "noradId, satname, startUTC, passData required" },
         { status: 400 },
+      );
+    }
+
+    // get plan + limits in one call
+    const { passLimit } = await getUserLimits(userId);
+    // check limit
+    const atLimit = await isAtPassLimitServer(userId, passLimit);
+
+    if (atLimit) {
+      return NextResponse.json(
+        {
+          error: "limit_reached",
+          message: `You have reached the ${passLimit} pass limit.`,
+        },
+        { status: 403 },
       );
     }
 

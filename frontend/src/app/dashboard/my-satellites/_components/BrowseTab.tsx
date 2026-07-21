@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { useAstroStore } from "@/stores/astrowatch";
 import type { CelestrakSatellite, SavedSatellite } from "@/types";
 import { useSavedSatellites } from "@/hooks/useSavedSatellites";
+import { isAtSatelliteLimit } from "@/lib/plans";
+import UpgradeModal from "@/components/ui/UpgradeModal";
+import { UserMessages } from "@/consts";
 
 const CATEGORIES = [
   { key: "stations", label: "Stations" },
@@ -15,7 +18,7 @@ const CATEGORIES = [
 ];
 
 export default function BrowseTab() {
-  const { savedSatellites } = useAstroStore();
+  const { savedSatellites, userPlan } = useAstroStore();
   const { handleSaveSat } = useSavedSatellites();
 
   const [category, setCategory] = useState("stations");
@@ -23,6 +26,14 @@ export default function BrowseTab() {
   const [results, setResults] = useState<CelestrakSatellite[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
+
+  // add state
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  const atLimit = isAtSatelliteLimit(
+    userPlan ?? "standard",
+    savedSatellites.length,
+  );
 
   // debounce search input
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -72,9 +83,18 @@ export default function BrowseTab() {
 
   async function handleSave(sat: CelestrakSatellite) {
     if (isSaved(sat.noradId) || savingId === sat.noradId) return;
+
+    // check limit before calling API
+    if (atLimit) {
+      setShowUpgrade(true);
+      return;
+    }
     setSavingId(sat.noradId);
     try {
-      handleSaveSat(sat);
+      const status = await handleSaveSat(sat);
+      if (status === "limit_reached") {
+        setShowUpgrade(true); // ← handled here ✅
+      }
     } catch (err) {
       console.log("Failed to save satellite", sat);
     } finally {
@@ -84,6 +104,14 @@ export default function BrowseTab() {
 
   return (
     <div className="flex flex-col gap-3">
+      {/** UpgradeModal */}
+      {showUpgrade && (
+        <UpgradeModal
+          onClose={() => setShowUpgrade(false)}
+          message={UserMessages.SatLimit}
+          title={UserMessages.SatLimitTitle}
+        />
+      )}
       {/* search input */}
       <div
         className="flex items-center gap-2
@@ -122,7 +150,6 @@ export default function BrowseTab() {
           </button>
         )}
       </div>
-
       {/* category chips */}
       <div className="flex flex-wrap gap-1.5">
         {CATEGORIES.map((cat) => (
@@ -141,7 +168,6 @@ export default function BrowseTab() {
           </button>
         ))}
       </div>
-
       {/* section label */}
       <p
         className="text-[10px] font-medium tracking-widest
@@ -151,7 +177,6 @@ export default function BrowseTab() {
           ? `Results for "${query}"`
           : `${CATEGORIES.find((c) => c.key === category)?.label ?? ""} satellites`}
       </p>
-
       {/* results list */}
       {isLoading ? (
         <div className="flex flex-col gap-2">
@@ -192,23 +217,32 @@ export default function BrowseTab() {
                     #{sat.noradId} · {sat.category}
                   </p>
                 </div>
-
                 {/* save button */}
                 <button
-                  onClick={() => handleSave(sat)}
+                  onClick={() =>
+                    atLimit && !saved ? setShowUpgrade(true) : handleSave(sat)
+                  }
                   disabled={saved || saving}
-                  className={`cursor-pointer flex-shrink-0 flex items-center
+                  className={`flex-shrink-0 flex items-center
                     gap-1 px-2.5 py-1 rounded-full text-[10px]
                     font-medium border transition-colors
-                    ${
-                      saved
-                        ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 cursor-default"
-                        : saving
-                          ? "border-aw-border text-white/20 cursor-wait"
+                  ${
+                    saved
+                      ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 cursor-default"
+                      : saving
+                        ? "border-aw-border text-white/20 cursor-wait"
+                        : atLimit
+                          ? "border-aw-amber/30 text-aw-amber/60 bg-aw-amber/6 cursor-pointer"
                           : "border-aw-purple/35 text-aw-purple bg-aw-purple/8 hover:bg-aw-purple/15"
-                    }`}
+                  }`}
                 >
-                  {saved ? "✓ Saved" : saving ? "..." : "+ Save"}
+                  {saved
+                    ? "✓ Saved"
+                    : saving
+                      ? "..."
+                      : atLimit
+                        ? "🔒 Limit"
+                        : "+ Save"}
                 </button>
               </div>
             );

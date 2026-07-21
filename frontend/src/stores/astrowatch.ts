@@ -6,6 +6,7 @@ import type {
   WeatherData,
   SavedSatellite,
   WeatherApiResponse,
+  UserPlan,
 } from "@/types";
 import { DEFAULT_LOCATION } from "@/consts";
 
@@ -48,6 +49,9 @@ interface AstroStore {
   passCache: Record<number, SatellitePass[]>;
   setPassCache: (cache: Record<number, SatellitePass[]>) => void;
   clearPassCache: () => void;
+  // user plan
+  userPlan: UserPlan | null;
+  setUserPlan: (plan: UserPlan) => void;
 }
 
 export const useAstroStore = create<AstroStore>()((set) => ({
@@ -137,4 +141,11 @@ export const useAstroStore = create<AstroStore>()((set) => ({
   passCache: {},
   setPassCache: (cache: {}) => set({ passCache: { ...cache } }),
   clearPassCache: () => set({ passCache: {} }),
+
+  //userPlan
+  userPlan: null,
+  setUserPlan: (plan) =>
+    set({
+      userPlan: plan,
+    }),
 }));

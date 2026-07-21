@@ -12,8 +12,10 @@ import {
 } from "@/components/ui/table";
 import { formatPassTime } from "@/lib/formatPassTime";
 import ScoreBadge from "@/components/ScoreBadge";
-import { SAT_COLORS, DEFAULT_COLOR } from "@/consts";
+import { SAT_COLORS, DEFAULT_COLOR, UserMessages } from "@/consts";
 import { SatellitePass } from "@/types";
+import { isAtPassLimit } from "@/lib/plans";
+import UpgradeModal from "@/components/ui/UpgradeModal";
 
 type SortKey = "date" | "score" | "elevation" | "satellite";
 type SortDir = "asc" | "desc";
@@ -25,6 +27,7 @@ export default function PassTable() {
     isLoadingSaved,
     isLoadingSavedPasses,
     location,
+    userPlan,
   } = useAstroStore();
 
   const [sortKey, setSortKey] = useState<SortKey>("date");
@@ -34,6 +37,10 @@ export default function PassTable() {
   const [watchingId, setWatchingId] = useState<string | null>(null);
 
   const timeZone = useMemo(() => location?.timezone, [location?.timezone]);
+
+  // add state
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const atPassLimit = isAtPassLimit(userPlan ?? "standard", watchedKeys.size);
 
   useEffect(() => {
     async function fetchWatched() {
@@ -55,10 +62,17 @@ export default function PassTable() {
   async function handleWatch(pass: SatellitePass) {
     const key = `${pass.satid}-${pass.startUTC}`;
     if (watchedKeys.has(key)) return;
+
+    // check limit before calling API
+    if (atPassLimit) {
+      setShowUpgrade(true);
+      return;
+    }
+
     setWatchingId(key);
 
     try {
-      await fetch("/api/watched-passes", {
+      const res = await fetch("/api/watched-passes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -68,6 +82,14 @@ export default function PassTable() {
           passData: pass,
         }),
       });
+
+      // handle backend limit response
+      if (res.status === 403) {
+        setShowUpgrade(true);
+        return;
+      }
+
+      if (!res.ok) throw new Error("Watch failed");
 
       setWatchedKeys((prev) => new Set([...prev, key]));
     } catch (err) {
@@ -171,6 +193,14 @@ export default function PassTable() {
 
   return (
     <div className="flex flex-col gap-3">
+      // add modal at bottom of return
+      {showUpgrade && (
+        <UpgradeModal
+          onClose={() => setShowUpgrade(false)}
+          message={UserMessages.PassesLimit}
+          title={UserMessages.PassesLimitTitle}
+        />
+      )}
       {/* header */}
       <div className="flex items-center justify-between px-1">
         <div>
@@ -181,7 +211,6 @@ export default function PassTable() {
           </p>
         </div>
       </div>
-
       {/* table */}
       <div
         className="rounded-xl border border-aw-border
@@ -330,20 +359,34 @@ export default function PassTable() {
                       const key = `${pass.satid}-${pass.startUTC}`;
                       const watched = watchedKeys.has(key);
                       const loading = watchingId === key;
+                      const locked = atPassLimit && !watched;
 
                       return (
                         <button
-                          onClick={() => handleWatch(pass)}
+                          onClick={() =>
+                            locked ? setShowUpgrade(true) : handleWatch(pass)
+                          }
                           disabled={watched || !!loading}
-                          className={`cursor-pointer flex items-center gap-1.5 text-[10px] border rounded-full px-2.5 py-1 transition-colors ${
-                            watched
-                              ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 cursor-default"
-                              : loading
-                                ? "border-aw-border text-white/20 cursor-wait"
-                                : "border-aw-border text-white/25 hover:text-aw-teal hover:border-aw-teal/40"
-                          }`}
+                          className={`cursor-pointer flex items-center gap-1.5
+                            text-[10px] border rounded-full
+                            px-2.5 py-1 transition-colors
+                            ${
+                              watched
+                                ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 cursor-default"
+                                : loading
+                                  ? "border-aw-border text-white/20 cursor-wait"
+                                  : locked
+                                    ? "border-aw-amber/30 text-aw-amber/60 bg-aw-amber/6"
+                                    : "border-aw-border text-white/25 hover:text-aw-teal hover:border-aw-teal/40"
+                            }`}
                         >
-                          {watched ? "★ Watching" : loading ? "..." : "☆ Watch"}
+                          {watched
+                            ? "★ Watching"
+                            : loading
+                              ? "..."
+                              : locked
+                                ? "🔒"
+                                : "☆ Watch"}
                         </button>
                       );
                     })()}

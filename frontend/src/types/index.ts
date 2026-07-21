@@ -85,3 +85,5 @@ export interface KnowledgeChunk {
   };
   similarity: number;
 }
+
+export type UserPlan = "standard" | "pro";

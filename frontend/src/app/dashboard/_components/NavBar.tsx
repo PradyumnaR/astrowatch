@@ -37,13 +37,6 @@ export default function NavBar() {
 
       {/* Right icons */}
       <div className="flex items-center gap-2">
-        <button
-          className="w-8 h-8 rounded-lg border border-aw-border
-            flex items-center justify-center
-            text-white/50 hover:text-white transition-colors"
-        >
-          △
-        </button>
         <Show when="signed-out">
           <SignInButton mode="modal">
             <button

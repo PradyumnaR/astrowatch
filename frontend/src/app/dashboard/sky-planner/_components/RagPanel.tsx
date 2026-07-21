@@ -77,7 +77,27 @@ export default function RagPanel() {
 
       {isLoading ? (
         <LoadingSkeleton />
-      ) : chunks.length === 0 ? null : (
+      ) : chunks.length === 0 ? (
+        <div
+          className="flex flex-col gap-3 pt-3
+        border-t border-aw-border"
+        >
+          <p
+            className="text-[10px] font-medium tracking-widest
+          uppercase text-white/25"
+          >
+            Knowledge
+          </p>
+          <p
+            className="text-[11px] text-white/20
+          leading-relaxed"
+          >
+            No knowledge found for{" "}
+            <span className="text-white/30">{selectedPass.satname}</span>. Try
+            asking Claude in the chat.
+          </p>
+        </div>
+      ) : (
         <>
           {/* description snippet */}
           {description && (

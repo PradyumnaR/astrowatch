@@ -15,3 +15,23 @@ export const DEFAULT_LOCATION = {
   name: "Burbank, CA",
   timezone: "America/Los_Angeles",
 };
+
+export const PLAN_LIMITS = {
+  standard: {
+    savedSatellites: 5,
+    watchedPasses: 5,
+  },
+  pro: {
+    savedSatellites: Infinity,
+    watchedPasses: Infinity,
+  },
+} as const;
+
+export const UserMessages = {
+  SatLimitTitle: "Satellite limit reached",
+  SatLimit:
+    "You have reached the 5 satellite limit. We are working on a Pro version with unlimited satellites — stay tuned!",
+  PassesLimitTitle: "Pass limit reached",
+  PassesLimit:
+    "You have reached the 5 watched pass limit. We are working on a Pro version with unlimited passes — stay tuned!",
+};
