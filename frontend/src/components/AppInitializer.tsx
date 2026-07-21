@@ -14,12 +14,18 @@ export default function AppInitializer() {
   const hasSynced = useRef(false);
 
   useEffect(() => {
+    // wait for Clerk to finish loading
+    // user not signed in → skip API calls
+    if (!isSignedIn || !isLoaded) return;
     fetchLocation();
-  }, []);
+  }, [isSignedIn, isLoaded]);
 
   useEffect(() => {
+    // wait for Clerk to finish loading
+    // user not signed in → skip API calls
+    if (!isSignedIn || !isLoaded) return;
     initSavedSatAndPasses();
-  }, [location?.lat, location?.lng]);
+  }, [location?.lat, location?.lng, isSignedIn, isLoaded]);
 
   useEffect(() => {
     // wait for Clerk to load

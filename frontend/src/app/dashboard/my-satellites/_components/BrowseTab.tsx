@@ -103,7 +103,7 @@ export default function BrowseTab() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 h-full overflow-hidden">
       {/** UpgradeModal */}
       {showUpgrade && (
         <UpgradeModal
@@ -177,53 +177,54 @@ export default function BrowseTab() {
           ? `Results for "${query}"`
           : `${CATEGORIES.find((c) => c.key === category)?.label ?? ""} satellites`}
       </p>
-      {/* results list */}
-      {isLoading ? (
-        <div className="flex flex-col gap-2">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="h-10 rounded-lg bg-white/[0.03]
-                animate-pulse"
-            />
-          ))}
-        </div>
-      ) : results.length === 0 ? (
-        <p className="text-[11px] text-white/20 py-4 text-center">
-          No satellites found
-        </p>
-      ) : (
-        <div className="flex flex-col gap-0.5">
-          {results.map((sat) => {
-            const saved = isSaved(sat.noradId);
-            const saving = savingId === sat.noradId;
-
-            return (
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {/* results list */}
+        {isLoading ? (
+          <div className="flex flex-col gap-2">
+            {[1, 2, 3, 4, 5].map((i) => (
               <div
-                key={sat.noradId}
-                className="flex items-center justify-between
+                key={i}
+                className="h-10 rounded-lg bg-white/[0.03]
+                animate-pulse"
+              />
+            ))}
+          </div>
+        ) : results.length === 0 ? (
+          <p className="text-[11px] text-white/20 py-4 text-center">
+            No satellites found
+          </p>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            {results.map((sat) => {
+              const saved = isSaved(sat.noradId);
+              const saving = savingId === sat.noradId;
+
+              return (
+                <div
+                  key={sat.noradId}
+                  className="flex items-center justify-between
                   gap-2 px-2 py-2 rounded-lg
                   hover:bg-white/[0.03] transition-colors"
-              >
-                {/* satellite info */}
-                <div className="flex-1 min-w-0">
-                  <p
-                    className="text-[12px] font-medium text-white
+                >
+                  {/* satellite info */}
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className="text-[12px] font-medium text-white
                     truncate"
-                  >
-                    {sat.satname}
-                  </p>
-                  <p className="text-[10px] text-white/25">
-                    #{sat.noradId} · {sat.category}
-                  </p>
-                </div>
-                {/* save button */}
-                <button
-                  onClick={() =>
-                    atLimit && !saved ? setShowUpgrade(true) : handleSave(sat)
-                  }
-                  disabled={saved || saving}
-                  className={`flex-shrink-0 flex items-center
+                    >
+                      {sat.satname}
+                    </p>
+                    <p className="text-[10px] text-white/25">
+                      #{sat.noradId} · {sat.category}
+                    </p>
+                  </div>
+                  {/* save button */}
+                  <button
+                    onClick={() =>
+                      atLimit && !saved ? setShowUpgrade(true) : handleSave(sat)
+                    }
+                    disabled={saved || saving}
+                    className={`flex-shrink-0 flex items-center
                     gap-1 px-2.5 py-1 rounded-full text-[10px]
                     font-medium border transition-colors
                   ${
@@ -235,20 +236,21 @@ export default function BrowseTab() {
                           ? "border-aw-amber/30 text-aw-amber/60 bg-aw-amber/6 cursor-pointer"
                           : "border-aw-purple/35 text-aw-purple bg-aw-purple/8 hover:bg-aw-purple/15"
                   }`}
-                >
-                  {saved
-                    ? "✓ Saved"
-                    : saving
-                      ? "..."
-                      : atLimit
-                        ? "🔒 Limit"
-                        : "+ Save"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                  >
+                    {saved
+                      ? "✓ Saved"
+                      : saving
+                        ? "..."
+                        : atLimit
+                          ? "🔒 Limit"
+                          : "+ Save"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

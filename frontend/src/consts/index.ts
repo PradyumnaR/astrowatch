@@ -29,9 +29,7 @@ export const PLAN_LIMITS = {
 
 export const UserMessages = {
   SatLimitTitle: "Satellite limit reached",
-  SatLimit:
-    "You have reached the 5 satellite limit. We are working on a Pro version with unlimited satellites — stay tuned!",
+  SatLimit: `You have reached the ${PLAN_LIMITS.standard.savedSatellites}  satellite limit. We are working on a Pro version with unlimited satellites — stay tuned!`,
   PassesLimitTitle: "Pass limit reached",
-  PassesLimit:
-    "You have reached the 5 watched pass limit. We are working on a Pro version with unlimited passes — stay tuned!",
+  PassesLimit: `You have reached the ${PLAN_LIMITS.standard.watchedPasses} watched pass limit. We are working on a Pro version with unlimited passes — stay tuned!`,
 };

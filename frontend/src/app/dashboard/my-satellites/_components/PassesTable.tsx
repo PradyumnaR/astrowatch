@@ -193,7 +193,6 @@ export default function PassTable() {
 
   return (
     <div className="flex flex-col gap-3">
-      // add modal at bottom of return
       {showUpgrade && (
         <UpgradeModal
           onClose={() => setShowUpgrade(false)}
