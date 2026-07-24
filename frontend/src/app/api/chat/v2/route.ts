@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     }
 
     // call FastAPI backend
-    const response = await fetch(`${BACKEND_URL}/agents/chat`, {
+    const response = await fetch(`${BACKEND_URL}/agents/chat/v2`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

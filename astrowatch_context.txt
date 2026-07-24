@@ -1,0 +1,208 @@
+=== PROJECT TREE ===
+
+=== BACKEND: chat.py ===
+import asyncio
+import os
+from typing import Literal, cast
+
+import anthropic
+from anthropic.types import MessageParam, TextBlock, ToolResultBlockParam, ToolUseBlock
+from agents.models import ChatMessage, SatellitePass, Location
+from dotenv import load_dotenv
+
+from tools.execute_tools import execute_tool
+from utils.build_system_prompt import build_system_prompt
+from tools.tools_list import TOOLS
+
+load_dotenv()
+
+client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+MODEL = "claude-sonnet-4-6"
+MAX_ITERATIONS = 5
+
+
+async def chat_with_tools(
+    messages: list[ChatMessage],
+    location: Location | None = None,
+    selected_pass: SatellitePass | None = None,
+) -> dict:
+    """
+    Chat with Claude using agentic tool loop.
+
+    Flow:
+    1. Build system prompt with context
+    2. Call Claude API
+    3. If Claude wants tools → execute in parallel
+    4. Add results to messages → loop back to 2
+    5. When Claude returns end_turn → return response
+    """
+    system = build_system_prompt(location, selected_pass)
+    tools_used = []
+    norad_id = selected_pass.satid if selected_pass else None
+
+    anthropic_messages: list[MessageParam] = [
+        MessageParam(role=cast(Literal["user", "assistant"], m.role), content=m.content)
+        for m in messages
+    ]
+
+    print(f"\nChat started — {len(messages)} messages")
+
+    iteration = 0
+
+    # ── agentic loop ──────────────────────────────────
+    while iteration < MAX_ITERATIONS:
+        iteration += 1
+        print(f"\nIteration {iteration}/{MAX_ITERATIONS}")
+
+        # claud call
+        response = client.messages.create(
+            model=MODEL,
+            max_tokens=2048,
+            system=system,
+            tools=TOOLS,
+            messages=anthropic_messages,
+        )
+
+        print(f"Stop reason: {response.stop_reason}")
+
+        if response.stop_reason == "end_turn":
+            content = ""
+            for block in response.content:
+                if isinstance(block, TextBlock):
+                    content = block.text
+                    break
+
+            print(f"Done in {iteration} iterations")
+            print(f"Tools used: {tools_used}")
+
+            return {
+                "content": content,
+                "toolsUsed": tools_used,
+            }
+
+        if response.stop_reason == "tool_use":
+            # add assistant response (list of blocks)
+            anthropic_messages.append(
+                MessageParam(
+                    role="assistant",
+                    content=response.content,  # ← list of blocks ✅
+                )
+            )
+            tool_calls = [
+                block for block in response.content if isinstance(block, ToolUseBlock)
+            ]
+
+            print(f"Claude called {len(tool_calls)} tool(s)")
+
+            # execute in parallel
+            tool_results_data = await asyncio.gather(
+                *[
+                    execute_tool(
+                        tool_name=block.name,
+                        tool_input=cast(dict, block.input),
+                        location=location,
+                        norad_id=norad_id,
+                    )
+                    for block in tool_calls
+                ]
+            )
+
+            tools_used.extend([b.name for b in tool_calls])
+
+            tool_results = [
+                ToolResultBlockParam(
+                    type="tool_result",
+                    tool_use_id=block.id,
+                    content=result,
+                )
+                for block, result in zip(tool_calls, tool_results_data)
+            ]
+
+            anthropic_messages.append(
+                MessageParam(
+                    role="user",
+                    content=tool_results,  # ← list of dicts ✅
+                )
+            )
+
+            continue
+        # unexpected stop reason
+        print(f"Unexpected stop reason: {response.stop_reason}")
+        break
+
+    # max iterations reached
+    print(f"Warning: reached max iterations ({MAX_ITERATIONS})")
+    return {
+        "content": "I needed more time to research that. Please try again.",
+        "toolsUsed": tools_used,
+    }
+
+=== BACKEND: state.py ===
+not found
+
+=== BACKEND: requirements.txt ===
+# build dependencies
+setuptools>=68.0
+wheel
+
+# core packages
+pydantic-core==2.46.4
+pydantic>=2.10.0
+
+# runtime
+fastapi>=0.115.0
+uvicorn==0.30.6
+anthropic==0.34.0
+voyageai==0.4.1
+supabase==2.7.4
+httpx==0.27.2
+python-dotenv==1.0.1
+
+# dev
+black
+=== FRONTEND: package.json ===
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.85",
+    "@ai-sdk/react": "^3.0.210",
+    "@anthropic-ai/sdk": "^0.105.0",
+    "@clerk/nextjs": "^7.5.8",
+    "@supabase/supabase-js": "^2.108.2",
+    "ai": "^6.0.208",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.21.0",
+    "next": "16.2.9",
+    "radix-ui": "^1.6.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "shadcn": "^4.12.0",
+    "tailwind-merge": "^3.6.0",
+    "tw-animate-css": "^1.4.0",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/maplibre-gl": "^1.13.2",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "supabase": "^2.107.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

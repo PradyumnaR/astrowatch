@@ -15,6 +15,7 @@ from agents.models import (
 )
 from agents.knowledge import search_knowledge_base
 from agents.chat import chat_with_tools
+from agents.chat_v2 import chat_with_tools_v2
 from rag.ingest import (
     ingest_nasa_apod,
     ingest_spaceflight_news,
@@ -185,3 +186,16 @@ async def chat(request: ChatRequest):
     except Exception as e:
         print(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
+
+@app.post("/agents/chat/v2")
+async def agents_chat_v2(request: ChatRequest):
+    try:
+        result = await chat_with_tools_v2(
+            messages=request.messages,
+            location=request.location,
+            selected_pass=request.selectedPass,
+        )
+        return ChatResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
