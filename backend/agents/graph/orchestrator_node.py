@@ -7,12 +7,14 @@ multi-turn reference resolution.
 import os
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
-from agents.state import AgentState, RoutingDecision
+from agents.graph.state import AgentState, RoutingDecision
 from typing import cast
+
+from utils.format_known_satellites import format_known_satellites
 
 ORCHESTRATOR_MODEL = "claude-haiku-4-5-20251001"
 
-ORCHESTRATOR_SYSTEM_PROMPT = """You are the routing orchestrator for AstroWatch, \
+ORCHESTRATOR_SYSTEM_PROMPT = f"""You are the routing orchestrator for AstroWatch, \
 a satellite pass tracking assistant. Given the conversation history, classify \
 the user's latest message and decide which specialist agents to call.
 
@@ -21,10 +23,18 @@ Agents available:
 - weather: fetches sky viewing conditions (clouds, wind)
 - knowledge: searches a space knowledge base (facts, news, missions)
 
+Known satellites and their NORAD IDs:
+{format_known_satellites()}
+
 Rules:
 - If the latest message references something from earlier in the \
 conversation ("it", "that", "what about tomorrow"), resolve it using the \
 history and the currently selected satellite before classifying.
+- If the user explicitly names a satellite (e.g. "when can I see Hubble"), \
+set norad_id to that satellite's NORAD ID, even if a different satellite \
+is currently selected — the named satellite takes priority.
+- If no satellite is named, leave norad_id null; the currently selected \
+satellite will be used as the default downstream.
 - If the query needs multiple kinds of information, set intent to "all" \
 and call all three agents in parallel.
 - If genuinely ambiguous or you're not confident, default to "all" \
@@ -54,7 +64,7 @@ def _format_selected_satellite(state: AgentState) -> str:
     return f"Currently selected satellite: {sp.satname} (NORAD {sp.satid})"
 
 
-def orchestrator_node(state: AgentState) -> AgentState:
+def orchestrator_node(state: AgentState) -> dict:
     prompt = (
         f"Conversation history:\n{_format_history(state)}\n\n"
         f"{_format_selected_satellite(state)}\n\n"
@@ -72,16 +82,15 @@ def orchestrator_node(state: AgentState) -> AgentState:
             ),
         )
 
-        state["routing"] = decision
+        return {"routing": decision}
     except Exception as e:
         # graceful fallback — never crash the graph on a bad classification
         last_message = state["messages"][-1].content if state["messages"] else ""
-        state["routing"] = RoutingDecision(
+        fallback = RoutingDecision(
             intent="all",
             agents_to_call=["satellite", "weather", "knowledge"],
             reasoning=f"Fallback due to classification error: {e}",
             resolved_query=last_message,
+            norad_id=None,
         )
-        state["errors"] = [f"orchestrator_error: {e}"]
-
-    return state
+        return {"routing": fallback, "errors": [f"orchestrator_error: {e}"]}

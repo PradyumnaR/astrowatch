@@ -12,26 +12,12 @@ Node responsibilities:
 from typing import Sequence
 from langgraph.graph import StateGraph, END
 
-from agents.orchestrator import orchestrator_node
-from agents.state import AgentState
-
-# ── stub nodes — will move to their own files on Day 3/4 ──────────
-
-
-def satellite_node(state: AgentState) -> AgentState:
-    raise NotImplementedError("Satellite Agent — Day 3")
-
-
-def weather_node(state: AgentState) -> AgentState:
-    raise NotImplementedError("Weather Agent — Day 3")
-
-
-def knowledge_node(state: AgentState) -> AgentState:
-    raise NotImplementedError("Knowledge Agent — Day 3")
-
-
-def report_writer_node(state: AgentState) -> AgentState:
-    raise NotImplementedError("Report Writer Agent — Day 4")
+from agents.graph.orchestrator_node import orchestrator_node
+from agents.graph.satellite_node import satellite_node
+from agents.graph.weather_node import weather_node
+from agents.graph.knowledge_node import knowledge_node
+from agents.graph.report_writer_node import report_writer_node
+from agents.graph.state import AgentState
 
 
 # ── conditional routing ────────────────────────────────────────────

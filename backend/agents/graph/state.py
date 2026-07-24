@@ -8,7 +8,6 @@ from typing import Annotated, Literal, Optional, TypedDict
 from pydantic import BaseModel, Field
 
 from agents.models import ChatMessage, Location, SatellitePass
-from backend.tools import passes
 
 
 class RoutingDecision(BaseModel):
@@ -27,6 +26,13 @@ class RoutingDecision(BaseModel):
         description="The user's latest message rewritten as a fully "
         "self-contained query, resolving pronouns/references using "
         "conversation history and the selected satellite"
+    )
+    norad_id: Optional[int] = Field(
+        default=None,
+        description="NORAD ID of the satellite explicitly named in the "
+        "user's message, if any (e.g. user asks about Hubble while ISS "
+        "is selected). Leave null if no specific satellite is named — "
+        "the currently selected satellite will be used as the default.",
     )
 
 
