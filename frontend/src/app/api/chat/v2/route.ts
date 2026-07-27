@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     }
 
     // call FastAPI backend
-    const response = await fetch(`${BACKEND_URL}/agents/chat/v2`, {
+    const response = await fetch(`${BACKEND_URL}/agents/chat/v2/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -30,33 +30,35 @@ export async function POST(req: Request) {
       }),
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      console.error("FastAPI error:", error);
-      throw new Error(error.detail ?? "Backend request failed");
+    if (!response.ok || !response.body) {
+      throw new Error(`Backend request failed: ${response.status}`);
     }
 
-    const data = await response.json();
-
-    return NextResponse.json({
-      content: data.content,
-      toolsUsed: data.toolsUsed ?? [],
-      sources: data.sources ?? [],
+    // pass the stream straight through — no buffering, no .json()
+    return new Response(response.body, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
     });
   } catch (err) {
     console.error("Chat route error:", err);
 
-    // fallback message if backend is down
-    return NextResponse.json(
-      {
-        content:
-          "I'm having trouble connecting to the AI backend. " +
-          "Please make sure the backend server is running " +
-          "and try again.",
-        toolsUsed: [],
-        sources: [],
-      },
-      { status: 200 }, // return 200 so ChatPanel shows message
-    );
+    // emit a fallback as a single SSE "final" event, so ChatPanel's
+    // stream parser handles this the same way as a real stream
+    const fallbackEvent = {
+      type: "final",
+      content:
+        "I'm having trouble connecting to the AI backend. " +
+        "Please make sure the backend server is running and try again.",
+      toolsUsed: [],
+      sources: [],
+    };
+
+    return new Response(`data: ${JSON.stringify(fallbackEvent)}\n\n`, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
   }
 }

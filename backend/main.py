@@ -1,8 +1,8 @@
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-
-import os
+from fastapi.responses import StreamingResponse
 
 from agents.models import (
     ChatRequest,
@@ -15,7 +15,7 @@ from agents.models import (
 )
 from agents.knowledge import search_knowledge_base
 from agents.chat import chat_with_tools
-from agents.chat_v2 import chat_with_tools_v2
+from agents.chat_v2 import stream_chat_with_tools_v2
 from rag.ingest import (
     ingest_nasa_apod,
     ingest_spaceflight_news,
@@ -188,14 +188,18 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
 
 
-@app.post("/agents/chat/v2")
-async def agents_chat_v2(request: ChatRequest):
-    try:
-        result = await chat_with_tools_v2(
+@app.post("/agents/chat/v2/stream")
+async def agents_chat_v2_stream(request: ChatRequest):
+    return StreamingResponse(
+        stream_chat_with_tools_v2(
             messages=request.messages,
             location=request.location,
             selected_pass=request.selectedPass,
-        )
-        return ChatResponse(**result)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # disables proxy buffering (Render/nginx), ensures chunks flush immediately
+        },
+    )

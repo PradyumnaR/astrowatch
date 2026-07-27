@@ -37,7 +37,7 @@ an exhaustive dump of every field.
 _writer_model = ChatAnthropic(
     model_name=REPORT_WRITER_MODEL,
     temperature=0,
-    timeout=10,  # fail fast rather than hang
+    timeout=30,  # fail fast rather than hang
     max_retries=2,
     stop=None,
 )
@@ -46,12 +46,23 @@ _writer_model = ChatAnthropic(
 def _format_context(state: AgentState) -> str:
     parts = []
     routing = state.get("routing")
-    parts.append(f"User's question: {routing.resolved_query if routing else ""}")
+    parts.append(f"\nUser's question: {routing.resolved_query if routing else ''}")
+
+    selected_pass = state.get("selected_pass")
+    if selected_pass:
+        parts.append(
+            f"\nCurrently selected satellite: {selected_pass.satname} "
+            f"(NORAD {selected_pass.satid})"
+        )
+
+    location = state.get("location")
+    if location:
+        parts.append(f"\nObserver location: {location.name}")
 
     passes_data = state.get("passes_data")
     if passes_data:
         parts.append(
-            f"\nSatellite pass data: \nBest pass: {passes_data.best_pass}"
+            f"\nSatellite pass data: \nBest pass: {passes_data.best_pass}\n"
             f"Tips: {passes_data.viewing_tips}"
         )
 
@@ -78,23 +89,23 @@ def _format_context(state: AgentState) -> str:
 
 async def report_writer_node(state: AgentState) -> dict:
     context = _format_context(state)
+    full_content = ""
 
     try:
-        response = await _writer_model.ainvoke(
+        async for chunk in _writer_model.astream(
             [
                 SystemMessage(content=REPORT_WRITER_SYSTEM_PROMPT),
                 HumanMessage(content=context),
             ]
-        )
-        content = response.content
-        if isinstance(content, list):
-            # defensive: join any content blocks into a single string
-            content = "\n".join(
-                block if isinstance(block, str) else str(block.get("text", ""))
-                for block in content
-            )
+        ):
+            piece = chunk.content
+            if isinstance(piece, list):
+                piece = "".join(
+                    b if isinstance(b, str) else str(b.get("text", "")) for b in piece
+                )
+            full_content += piece
 
-        return {"final_response": content}
+        return {"final_response": full_content}
     except Exception as e:
         return {
             "errors": [f"report_writer_error: {e}"],

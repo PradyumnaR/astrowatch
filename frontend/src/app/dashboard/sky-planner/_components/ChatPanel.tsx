@@ -26,6 +26,7 @@ export default function ChatPanel() {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null); // NEW
 
   async function submitMessage() {
     if (!input.trim() || isLoading) return;
@@ -39,6 +40,10 @@ export default function ChatPanel() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
+    setStatusMessage("Understanding your question...");
+
+    const assistantId = (Date.now() + 1).toString();
+    let assistantStarted = false;
 
     try {
       const resp = await fetch("/api/chat/v2", {
@@ -54,28 +59,68 @@ export default function ChatPanel() {
         }),
       });
 
-      const data = await resp.json();
+      if (!resp.body) throw new Error("No response body");
 
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: data.content,
-        toolsUsed: data.toolsUsed ?? [],
-      };
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-      setMessages((prev) => [...prev, assistantMessage]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const event = JSON.parse(line.slice(6));
+
+          if (event.type === "status") {
+            setStatusMessage(event.message);
+          } else if (event.type === "token") {
+            if (!assistantStarted) {
+              assistantStarted = true;
+              setIsLoading(false);
+              setStatusMessage(null);
+              setMessages((prev) => [
+                ...prev,
+                { id: assistantId, role: "assistant", content: event.text },
+              ]);
+            } else {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? { ...m, content: m.content + event.text }
+                    : m,
+                ),
+              );
+            }
+          } else if (event.type === "final") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, toolsUsed: event.toolsUsed ?? [] }
+                  : m,
+              ),
+            );
+          }
+        }
+      }
     } catch (err) {
       console.error("Chat error:", err);
       setMessages((prev) => [
         ...prev,
         {
-          id: (Date.now() + 1).toString(),
+          id: assistantId,
           role: "assistant",
           content: "Something went wrong. Please try again.",
         },
       ]);
     } finally {
       setIsLoading(false);
+      setStatusMessage(null);
     }
   }
 
@@ -160,8 +205,9 @@ export default function ChatPanel() {
         {/* message list */}
         {messages.map((msg, i) => (
           <div key={msg.id}>
+            <MessageBubble key={msg.id} msg={msg} />
             {msg.toolsUsed && msg.toolsUsed.length > 0 && (
-              <div className="flex flex-wrap gap-1 pl-10 pb-2 items-center text-cyan-400">
+              <div className="flex flex-wrap gap-1 pl-10 pt-2 items-center text-cyan-400">
                 <span className="text-[12px]">Tools used: </span>
                 {msg.toolsUsed.map((tool: string) => (
                   <span
@@ -176,21 +222,25 @@ export default function ChatPanel() {
                 ))}
               </div>
             )}
-            <MessageBubble key={msg.id} msg={msg} />
           </div>
         ))}
 
-        {/* streaming indicator — dots while waiting */}
+        {/* streaming indicator — dots + live status while waiting */}
         {isLoading && (
-          <div className="flex gap-1.5 px-1">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="w-1.5 h-1.5 rounded-full
-                  bg-aw-purple animate-bounce"
-                style={{ animationDelay: `${i * 0.15}s` }}
-              />
-            ))}
+          <div className="flex items-center gap-2 px-1">
+            <div className="flex gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full
+            bg-aw-purple animate-bounce"
+                  style={{ animationDelay: `${i * 0.15}s` }}
+                />
+              ))}
+            </div>
+            {statusMessage && (
+              <span className="text-[11px] text-white/40">{statusMessage}</span>
+            )}
           </div>
         )}
 
