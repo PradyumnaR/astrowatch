@@ -4,7 +4,7 @@ export default function WeatherSkeleton() {
       {[80, 60, 70, 50, 65].map((w, i) => (
         <div
           key={i}
-          className="h-4 rounded bg-white/5 animate-pulse"
+          className="h-4 rounded bg-aw-tint animate-pulse"
           style={{ width: `${w}%` }}
         />
       ))}

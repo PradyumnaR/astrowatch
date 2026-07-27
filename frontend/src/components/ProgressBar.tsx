@@ -9,7 +9,7 @@ export default function ProgressBar({
 }) {
   const pct = Math.min((100 * value) / max, 100);
   return (
-    <div className="h-[3px] rounded-full bg-white/8 overflow-hidden">
+    <div className="h-[3px] rounded-full bg-aw-tint overflow-hidden">
       <div
         className={`h-full rounded-full ${color}`}
         style={{ width: `${pct}%` }}

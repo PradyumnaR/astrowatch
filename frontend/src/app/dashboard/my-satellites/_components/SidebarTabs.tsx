@@ -11,7 +11,7 @@ export default function SidebarTabs() {
   return (
     <div className="flex flex-col gap-3 h-full">
       {/**Tab switcher */}
-      <div className="flex gap-1 p-1 rounded-lg bg-white/[0.04] border border-aw-border">
+      <div className="flex gap-1 p-1 rounded-lg bg-aw-tint border border-aw-border">
         <button
           onClick={() => setActiveTab("browse")}
           className={`cursor-pointer flex-1 py-1.5 rounded-md
@@ -19,7 +19,7 @@ export default function SidebarTabs() {
             ${
               activeTab === "browse"
                 ? "bg-aw-purple/20 text-aw-purple"
-                : "text-white/30 hover:text-white/60"
+                : "text-aw-text-muted hover:text-aw-text-sec"
             }`}
         >
           Browse
@@ -31,7 +31,7 @@ export default function SidebarTabs() {
             ${
               activeTab === "my-satellites"
                 ? "bg-aw-purple/20 text-aw-purple"
-                : "text-white/30 hover:text-white/60"
+                : "text-aw-text-muted hover:text-aw-text-sec"
             }`}
         >
           My satellites

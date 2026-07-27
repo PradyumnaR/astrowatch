@@ -4,7 +4,7 @@ export default function ScoreBadge({ score }: { score: number }) {
       ? "bg-aw-teal/15 text-aw-teal"
       : score >= 5
         ? "bg-aw-amber/15 text-aw-amber"
-        : "bg-white/6 text-white/30";
+        : "bg-aw-tint text-aw-text-muted";
 
   return (
     <div className="flex flex-col items-end gap-0.5">
@@ -14,7 +14,7 @@ export default function ScoreBadge({ score }: { score: number }) {
       >
         {score.toFixed(1)}
       </span>
-      <span className="text-[9px] text-white/25">Visibility</span>
+      <span className="text-[9px] text-aw-text-muted">Visibility</span>
     </div>
   );
 }

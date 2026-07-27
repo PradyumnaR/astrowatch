@@ -40,9 +40,9 @@ export default function UpgradeModal({
 
         {/* title */}
         <div className="flex flex-col gap-1">
-          <p className="text-[14px] font-semibold text-white">{title}</p>
+          <p className="text-[14px] font-semibold text-aw-text">{title}</p>
           <p
-            className="text-[12px] text-white/50
+            className="text-[12px] text-aw-text-sec
             leading-relaxed"
           >
             {message}
@@ -53,9 +53,9 @@ export default function UpgradeModal({
         <button
           onClick={onClose}
           className="w-full py-2 rounded-xl
-            bg-white/[0.06] border border-aw-border
-            text-[12px] font-medium text-white/60
-            hover:bg-white/[0.10] hover:text-white
+            bg-aw-tint-hover border border-aw-border
+            text-[12px] font-medium text-aw-text-sec
+            hover:bg-aw-tint-hover hover:text-aw-text
             transition-colors"
         >
           Got it

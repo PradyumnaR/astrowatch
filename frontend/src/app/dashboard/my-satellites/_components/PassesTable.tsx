@@ -203,8 +203,8 @@ export default function PassTable() {
       {/* header */}
       <div className="flex items-center justify-between px-1">
         <div>
-          <p className="text-[13px] font-medium text-white">Upcoming passes</p>
-          <p className="text-[11px] text-white/30 mt-0.5">
+          <p className="text-[13px] font-medium text-aw-text">Upcoming passes</p>
+          <p className="text-[11px] text-aw-text-muted mt-0.5">
             {dateRange} · {savedSatellites.length} satellites · {sorted.length}{" "}
             passes
           </p>
@@ -250,19 +250,19 @@ export default function PassTable() {
                 onSort={handleSort}
               />
               <TableHead
-                className="text-white/30 text-[10px]
+                className="text-aw-text-muted text-[10px]
                 font-medium uppercase tracking-widest"
               >
                 Duration
               </TableHead>
               <TableHead
-                className="text-white/30 text-[10px]
+                className="text-aw-text-muted text-[10px]
                 font-medium uppercase tracking-widest"
               >
                 Direction
               </TableHead>
               <TableHead
-                className="text-white/30 text-[10px]
+                className="text-aw-text-muted text-[10px]
                 font-medium uppercase tracking-widest"
               >
                 Notify
@@ -275,7 +275,7 @@ export default function PassTable() {
               <TableRow
                 key={`${pass.satid}-${pass.startUTC}`}
                 className="border-aw-border
-                  hover:bg-white/[0.02] transition-colors"
+                  hover:bg-aw-tint-hover transition-colors"
               >
                 {/* satellite */}
                 <TableCell>
@@ -290,11 +290,11 @@ export default function PassTable() {
                     <div>
                       <p
                         className="text-[12px] font-medium
-                        text-white"
+                        text-aw-text"
                       >
                         {pass.satname}
                       </p>
-                      <p className="text-[10px] text-white/25">#{pass.satid}</p>
+                      <p className="text-[10px] text-aw-text-muted">#{pass.satid}</p>
                     </div>
                   </div>
                 </TableCell>
@@ -302,7 +302,7 @@ export default function PassTable() {
                 {/* date & time */}
                 <TableCell
                   className="text-[12px]
-                  text-white/60"
+                  text-aw-text-sec"
                 >
                   {formatPassTime(pass.startUTC, timeZone || "")}
                 </TableCell>
@@ -315,7 +315,7 @@ export default function PassTable() {
                 {/* max elevation */}
                 <TableCell
                   className="text-[12px]
-                  text-white/60"
+                  text-aw-text-sec"
                 >
                   {pass.maxEl}°
                 </TableCell>
@@ -323,7 +323,7 @@ export default function PassTable() {
                 {/* duration */}
                 <TableCell
                   className="text-[12px]
-                  text-white/60"
+                  text-aw-text-sec"
                 >
                   {Math.round(pass.duration / 60)} min
                 </TableCell>
@@ -332,7 +332,7 @@ export default function PassTable() {
                 <TableCell>
                   <span
                     className="font-mono text-[11px]
-                    text-white/40"
+                    text-aw-text-muted"
                   >
                     {pass.startAzCompass} → {azToCompass(pass.endAz)}
                   </span>
@@ -344,7 +344,7 @@ export default function PassTable() {
                     <button
                       onClick={() => handleEmail(pass)}
                       className="flex items-center gap-1.5
-                      text-[10px] text-white/25
+                      text-[10px] text-aw-text-muted
                       border border-aw-border
                       rounded-full px-2.5 py-1
                       hover:text-aw-purple
@@ -373,10 +373,10 @@ export default function PassTable() {
                               watched
                                 ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 cursor-default"
                                 : loading
-                                  ? "border-aw-border text-white/20 cursor-wait"
+                                  ? "border-aw-border text-aw-text-muted cursor-wait"
                                   : locked
                                     ? "border-aw-amber/30 text-aw-amber/60 bg-aw-amber/6"
-                                    : "border-aw-border text-white/25 hover:text-aw-teal hover:border-aw-teal/40"
+                                    : "border-aw-border text-aw-text-muted hover:text-aw-teal hover:border-aw-teal/40"
                             }`}
                         >
                           {watched
@@ -434,7 +434,7 @@ function SortableHead({
       className={`text-[10px] font-medium uppercase
         tracking-widest cursor-pointer select-none
         transition-colors
-        ${active ? "text-aw-purple" : "text-white/30 hover:text-white/50"}`}
+        ${active ? "text-aw-purple" : "text-aw-text-muted hover:text-aw-text-sec"}`}
     >
       {label}{" "}
       <span className="text-[10px]">
@@ -450,9 +450,9 @@ function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
       className="flex flex-col items-center
       justify-center gap-3 py-20 text-center"
     >
-      <p className="text-white/30 text-sm font-medium">{title}</p>
+      <p className="text-aw-text-muted text-sm font-medium">{title}</p>
       <p
-        className="text-white/15 text-[12px]
+        className="text-aw-text-muted text-[12px]
         leading-relaxed max-w-xs"
       >
         {subtitle}
@@ -474,7 +474,7 @@ function TableSkeleton() {
         {[120, 100, 60, 60, 70, 80, 60].map((w, i) => (
           <div
             key={i}
-            className="h-3 rounded bg-white/[0.04]
+            className="h-3 rounded bg-aw-tint
               animate-pulse"
             style={{ width: w }}
           />
@@ -485,7 +485,7 @@ function TableSkeleton() {
           {[120, 100, 60, 60, 70, 80, 60].map((w, j) => (
             <div
               key={j}
-              className="h-3 rounded bg-white/[0.03]
+              className="h-3 rounded bg-aw-tint
                 animate-pulse"
               style={{ width: w }}
             />

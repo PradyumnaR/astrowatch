@@ -22,7 +22,7 @@ export default function MessageBubble({ msg }: { msg: ChatMessage }) {
             text-[10px] font-semibold mt-0.5
             ${
               isUser
-                ? "bg-white/8 text-white/40"
+                ? "bg-aw-tint text-aw-text-muted"
                 : "bg-aw-purple/20 text-aw-purple border border-aw-purple/25"
             }`}
       >
@@ -36,7 +36,7 @@ export default function MessageBubble({ msg }: { msg: ChatMessage }) {
             ${
               isUser
                 ? "bg-aw-purple/15 text-aw-purple border border-aw-purple/20"
-                : "bg-white/[0.04] text-white/80 border border-aw-border"
+                : "bg-aw-tint text-aw-text-sec border border-aw-border"
             }`}
       >
         {isUser ? <span>{msg.content}</span> : <Markdown text={msg.content} />}

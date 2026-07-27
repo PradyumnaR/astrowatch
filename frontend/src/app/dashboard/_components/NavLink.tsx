@@ -20,7 +20,7 @@ export default function NavLink({
         "px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors",
         isActive
           ? "bg-aw-purple/15 text-aw-purple"
-          : "text-white/50 hover:text-white hover:bg-white/5",
+          : "text-aw-text-sec hover:text-aw-text hover:bg-aw-tint",
       ].join(" ")}
     >
       {children}

@@ -72,7 +72,7 @@ export default function WeeklyHighlights() {
       <div className="flex flex-col gap-2">
         <p
           className="text-[10px] font-medium tracking-widest
-          uppercase text-white/25"
+          uppercase text-aw-text-muted"
         >
           This week&apos;s best
         </p>
@@ -92,7 +92,7 @@ export default function WeeklyHighlights() {
       <div className="flex flex-col gap-2">
         <p
           className="text-[10px] font-medium tracking-widest
-          uppercase text-white/25"
+          uppercase text-aw-text-muted"
         >
           Weekly breakdown
         </p>
@@ -127,7 +127,7 @@ function HighlightCard({
 
   return (
     <div
-      className="bg-white/[0.03] border border-aw-border
+      className="bg-aw-tint border border-aw-border
       rounded-xl p-3 mb-2"
     >
       {/* header */}
@@ -136,7 +136,7 @@ function HighlightCard({
           className="w-1.5 h-1.5 rounded-full flex-shrink-0"
           style={{ background: color }}
         />
-        <p className="text-[12px] font-medium text-white">{pass.satname}</p>
+        <p className="text-[12px] font-medium text-aw-text">{pass.satname}</p>
       </div>
 
       {/* rows */}
@@ -147,7 +147,7 @@ function HighlightCard({
         />
 
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-white/30">Score</span>
+          <span className="text-[10px] text-aw-text-muted">Score</span>
           <span className={`text-[11px] font-medium ${scoreColor(score)}`}>
             {score.toFixed(1)} · {scoreLabel(score)}
           </span>
@@ -156,8 +156,8 @@ function HighlightCard({
         <CardRow label="Max el." value={`${pass.maxEl}°`} />
 
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-white/30">Direction</span>
-          <span className="font-mono text-[11px] font-medium text-white/70">
+          <span className="text-[10px] text-aw-text-muted">Direction</span>
+          <span className="font-mono text-[11px] font-medium text-aw-text-sec">
             {pass.startAzCompass} → {azToCompass(pass.endAz)}
           </span>
         </div>
@@ -169,8 +169,8 @@ function HighlightCard({
 function CardRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[10px] text-white/30">{label}</span>
-      <span className="text-[11px] font-medium text-white/70">{value}</span>
+      <span className="text-[10px] text-aw-text-muted">{label}</span>
+      <span className="text-[11px] font-medium text-aw-text-sec">{value}</span>
     </div>
   );
 }
@@ -191,16 +191,16 @@ function BreakdownRow({
   return (
     <div className="flex items-center gap-2">
       <span
-        className="text-[11px] text-white/35 truncate"
+        className="text-[11px] text-aw-text-muted truncate"
         style={{ minWidth: 52 }}
       >
         {name}
       </span>
-      <div className="flex-1 h-1 rounded bg-white/[0.06]">
+      <div className="flex-1 h-1 rounded bg-aw-tint-hover">
         <div className="h-full rounded" style={{ width, background: color }} />
       </div>
       <span
-        className="text-[11px] text-white/35 text-right"
+        className="text-[11px] text-aw-text-muted text-right"
         style={{ minWidth: 16 }}
       >
         {count}
@@ -212,7 +212,7 @@ function BreakdownRow({
 function EmptyState({ text }: { text: string }) {
   return (
     <p
-      className="text-[11px] text-white/20 text-center
+      className="text-[11px] text-aw-text-muted text-center
       leading-relaxed whitespace-pre-line py-8"
     >
       {text}
@@ -234,5 +234,5 @@ function scoreLabel(score: number): string {
 function scoreColor(score: number): string {
   if (score >= 8) return "text-aw-teal";
   if (score >= 5) return "text-aw-amber";
-  return "text-white/30";
+  return "text-aw-text-muted";
 }

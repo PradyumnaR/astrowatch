@@ -3,16 +3,18 @@
 import { useRouter } from "next/navigation";
 import { SignInButton, SignUpButton, Show, UserButton } from "@clerk/nextjs";
 import NavLink from "./NavLink";
+import { useTheme } from "@/hooks/useTheme";
 
 export default function NavBar() {
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
 
   const handleNavigation = () => {
     router.push("/dashboard/sky-planner");
   };
 
   return (
-    <header className="fixed top-0 left-0 z-50 h-[50px] min-w-full bg-[#0d0d1a] border-b border-aw-border px-5 flex items-center gap-4 cursor-pointer text-white/80 hover:text-white">
+    <header className="fixed top-0 left-0 z-50 h-[50px] min-w-full bg-aw-bg border-b border-aw-border px-5 flex items-center gap-4 cursor-pointer text-aw-text-sec hover:text-aw-text">
       {/* Logo */}
       <div
         className="flex items-center gap-2 text-[15px] font-medium"
@@ -37,11 +39,19 @@ export default function NavBar() {
 
       {/* Right icons */}
       <div className="flex items-center gap-2">
+        <button
+          onClick={toggleTheme}
+          aria-label="Toggle theme"
+          className="h-8 px-3 rounded-lg border border-aw-border
+            text-[13px] text-aw-text-sec hover:text-aw-text transition-colors cursor-pointer"
+        >
+          {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+        </button>
         <Show when="signed-out">
           <SignInButton mode="modal">
             <button
               className="h-8 px-3 rounded-lg border border-aw-border
-                text-[13px] text-white/70 hover:text-white transition-colors"
+                text-[13px] text-aw-text-sec hover:text-aw-text transition-colors"
             >
               Sign in
             </button>

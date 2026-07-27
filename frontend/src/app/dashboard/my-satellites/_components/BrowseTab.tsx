@@ -115,7 +115,7 @@ export default function BrowseTab() {
       {/* search input */}
       <div
         className="flex items-center gap-2
-        bg-white/[0.04] border border-aw-border
+        bg-aw-tint border border-aw-border
         rounded-lg px-3 py-2"
       >
         <svg
@@ -127,7 +127,7 @@ export default function BrowseTab() {
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="text-white/25 flex-shrink-0"
+          className="text-aw-text-muted flex-shrink-0"
         >
           <circle cx="11" cy="11" r="8" />
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -137,13 +137,13 @@ export default function BrowseTab() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name or NORAD ID..."
           className="flex-1 bg-transparent text-[12px]
-            text-white/60 placeholder:text-white/20
+            text-aw-text-sec placeholder:text-aw-text-muted
             outline-none"
         />
         {query && (
           <button
             onClick={() => setQuery("")}
-            className="text-white/20 hover:text-white/40
+            className="text-aw-text-muted hover:text-aw-text-muted
               text-sm transition-colors"
           >
             ✕
@@ -161,7 +161,7 @@ export default function BrowseTab() {
               ${
                 category === cat.key
                   ? "bg-aw-purple/15 border-aw-purple/40 text-aw-purple"
-                  : "border-aw-border text-white/30 hover:text-white/50 hover:border-white/15"
+                  : "border-aw-border text-aw-text-muted hover:text-aw-text-sec hover:border-aw-border"
               }`}
           >
             {cat.label}
@@ -171,7 +171,7 @@ export default function BrowseTab() {
       {/* section label */}
       <p
         className="text-[10px] font-medium tracking-widest
-        uppercase text-white/25"
+        uppercase text-aw-text-muted"
       >
         {query
           ? `Results for "${query}"`
@@ -184,13 +184,13 @@ export default function BrowseTab() {
             {[1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
-                className="h-10 rounded-lg bg-white/[0.03]
+                className="h-10 rounded-lg bg-aw-tint
                 animate-pulse"
               />
             ))}
           </div>
         ) : results.length === 0 ? (
-          <p className="text-[11px] text-white/20 py-4 text-center">
+          <p className="text-[11px] text-aw-text-muted py-4 text-center">
             No satellites found
           </p>
         ) : (
@@ -204,17 +204,17 @@ export default function BrowseTab() {
                   key={sat.noradId}
                   className="flex items-center justify-between
                   gap-2 px-2 py-2 rounded-lg
-                  hover:bg-white/[0.03] transition-colors"
+                  hover:bg-aw-tint-hover transition-colors"
                 >
                   {/* satellite info */}
                   <div className="flex-1 min-w-0">
                     <p
-                      className="text-[12px] font-medium text-white
+                      className="text-[12px] font-medium text-aw-text
                     truncate"
                     >
                       {sat.satname}
                     </p>
-                    <p className="text-[10px] text-white/25">
+                    <p className="text-[10px] text-aw-text-muted">
                       #{sat.noradId} · {sat.category}
                     </p>
                   </div>
@@ -231,7 +231,7 @@ export default function BrowseTab() {
                     saved
                       ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 cursor-default"
                       : saving
-                        ? "border-aw-border text-white/20 cursor-wait"
+                        ? "border-aw-border text-aw-text-muted cursor-wait"
                         : atLimit
                           ? "border-aw-amber/30 text-aw-amber/60 bg-aw-amber/6 cursor-pointer"
                           : "border-aw-purple/35 text-aw-purple bg-aw-purple/8 hover:bg-aw-purple/15"

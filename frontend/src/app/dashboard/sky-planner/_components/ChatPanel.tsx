@@ -169,7 +169,7 @@ export default function ChatPanel() {
   return (
     <div
       className="flex flex-col flex-1
-      bg-[#0d0d1a] border border-aw-border
+      bg-aw-bg border border-aw-border
       rounded-xl overflow-y-scroll min-h-[300px]"
     >
       <div
@@ -182,7 +182,7 @@ export default function ChatPanel() {
             className="flex flex-col items-center
             justify-center h-full gap-3 text-center"
           >
-            <p className="text-white/20 text-sm">
+            <p className="text-aw-text-muted text-sm">
               Ask anything about selected passes
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
@@ -192,8 +192,8 @@ export default function ChatPanel() {
                   onClick={() => setInput(s)}
                   className="text-[11px] px-3 py-1.5
                     rounded-full border border-aw-border
-                    text-white/30 hover:text-white/60
-                    hover:border-white/20 transition-colors"
+                    text-aw-text-muted hover:text-aw-text-sec
+                    hover:border-aw-border transition-colors"
                 >
                   {s}
                 </button>
@@ -239,7 +239,7 @@ export default function ChatPanel() {
               ))}
             </div>
             {statusMessage && (
-              <span className="text-[11px] text-white/40">{statusMessage}</span>
+              <span className="text-[11px] text-aw-text-muted">{statusMessage}</span>
             )}
           </div>
         )}
@@ -262,9 +262,9 @@ export default function ChatPanel() {
                 ? `Ask about ${selectedPass.satname}...`
                 : "Select a pass to get started..."
             }
-            className="flex-1 bg-white/5 border
+            className="flex-1 bg-aw-tint border
             border-aw-border rounded-lg px-3 py-2
-            text-[13px] text-white placeholder:text-white/20
+            text-[13px] text-aw-text placeholder:text-aw-text-muted
             outline-none focus:border-aw-purple
             transition-colors disabled:opacity-40"
           />

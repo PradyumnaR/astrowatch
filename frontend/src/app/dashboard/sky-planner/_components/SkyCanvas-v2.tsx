@@ -283,8 +283,7 @@ export default function SkyCanvas() {
   return (
     <div
       className="relative w-full rounded-xl overflow-hidden
-        border border-aw-border"
-      style={{ background: "#06060f" }}
+        border border-aw-border sky-canvas-always-dark"
     >
       <style>{`
         @keyframes tw-a {

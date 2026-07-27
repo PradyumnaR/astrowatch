@@ -6,23 +6,57 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-aw-bg: #0d0d1a;
-  --color-aw-surface: #1e1e3a;
+  /* Tailwind v4 has no tailwind.config.ts here — these token utilities
+     (bg-aw-bg, etc.) resolve to the themeable --aw-* vars set on <html>.
+     Accents stay fixed hex. Fallbacks = dark, for the pre-hydration paint. */
+  --color-aw-bg: var(--aw-bg, #0d0d1a);
+  --color-aw-surface: var(--aw-surface, #1e1e3a);
+  --color-aw-border: var(--aw-border, rgba(255, 255, 255, 0.08));
+  --color-aw-text: var(--aw-text, #e8e8f5);
+  --color-aw-text-sec: var(--aw-text-sec, rgba(255, 255, 255, 0.6));
+  --color-aw-text-muted: var(--aw-text-muted, rgba(255, 255, 255, 0.25));
+  --color-aw-tint: var(--aw-tint, rgba(255, 255, 255, 0.04));
+  --color-aw-tint-hover: var(--aw-tint-hover, rgba(255, 255, 255, 0.08));
   --color-aw-purple: #7c6ff7;
   --color-aw-teal: #2dd4a0;
   --color-aw-amber: #f5a623;
-  --color-aw-border: rgba(255, 255, 255, 0.08);
   --font-sans: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
+}
+
+html.dark {
+  --aw-bg: #0d0d1a;
+  --aw-surface: #1e1e3a;
+  --aw-text: #e8e8f5;
+  --aw-text-sec: rgba(255, 255, 255, 0.6);
+  --aw-text-muted: rgba(255, 255, 255, 0.25);
+  --aw-tint: rgba(255, 255, 255, 0.04);
+  --aw-tint-hover: rgba(255, 255, 255, 0.08);
+  --aw-border: rgba(255, 255, 255, 0.08);
+}
+
+html.light {
+  --aw-bg: #f0f4ff;
+  --aw-surface: #ffffff;
+  --aw-text: #0d0d1a;
+  --aw-text-sec: rgba(0, 0, 0, 0.6);
+  --aw-text-muted: rgba(0, 0, 0, 0.35);
+  --aw-tint: rgba(0, 0, 0, 0.04);
+  --aw-tint-hover: rgba(0, 0, 0, 0.06);
+  --aw-border: rgba(0, 0, 0, 0.08);
 }
 
 @layer base {
   html,
   body {
-    background-color: #0d0d1a;
-    color: #e8e8f5;
+    background-color: var(--aw-bg, #0d0d1a);
+    color: var(--aw-text, #e8e8f5);
     font-family: "Inter", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+  }
+
+  .sky-canvas-always-dark {
+    background: #999999 !important;
   }
 
   /* custom scrollbar */

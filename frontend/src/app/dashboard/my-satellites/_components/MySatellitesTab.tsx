@@ -16,7 +16,7 @@ export default function MySatellitesTab() {
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-10 rounded-xl bg-white/[0.03]
+            className="h-10 rounded-xl bg-aw-tint
               animate-pulse"
           />
         ))}
@@ -31,9 +31,9 @@ export default function MySatellitesTab() {
         className="flex flex-col items-center
           justify-center gap-2 py-10 text-center px-4"
       >
-        <p className="text-white/20 text-sm">No saved satellites yet</p>
+        <p className="text-aw-text-muted text-sm">No saved satellites yet</p>
         <p
-          className="text-white/15 text-[11px]
+          className="text-aw-text-muted text-[11px]
             leading-relaxed"
         >
           Browse the catalogue and save satellites to track their passes
@@ -46,7 +46,7 @@ export default function MySatellitesTab() {
     <div className="flex flex-col gap-1.5">
       <p
         className="text-[10px] font-medium tracking-widest
-        uppercase text-white/25 mb-1"
+        uppercase text-aw-text-muted mb-1"
       >
         {savedSatellites.length} saved
       </p>
@@ -55,9 +55,9 @@ export default function MySatellitesTab() {
         <div
           key={sat.noradId}
           className="flex items-center gap-3
-            bg-white/[0.03] border border-aw-border
+            bg-aw-tint border border-aw-border
             rounded-xl px-3 py-2.5
-            hover:bg-white/[0.05] transition-colors"
+            hover:bg-aw-tint-hover transition-colors"
         >
           {/* color dot */}
           <div
@@ -71,17 +71,17 @@ export default function MySatellitesTab() {
           <div className="flex-1 min-w-0">
             <p
               className="text-[12px] font-medium
-              text-white truncate"
+              text-aw-text truncate"
             >
               {sat.satname}
             </p>
-            <p className="text-[10px] text-white/25 mt-0.5">#{sat.noradId}</p>
+            <p className="text-[10px] text-aw-text-muted mt-0.5">#{sat.noradId}</p>
           </div>
 
           {/* remove */}
           <button
             onClick={() => handleRemoveSat(sat)}
-            className="text-white/15 hover:text-red-400
+            className="text-aw-text-muted hover:text-red-400
               transition-colors flex-shrink-0 p-1 rounded"
             aria-label={`Remove ${sat.satname}`}
           >

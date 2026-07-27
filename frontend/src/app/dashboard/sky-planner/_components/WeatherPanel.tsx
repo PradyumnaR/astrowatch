@@ -21,11 +21,11 @@ export default function WeatherPanel() {
       <section>
         <SectionLabel>
           <div className="flex flex-col">
-            <span className="text-[10px] font-medium tracking-widest uppercase text-white/40">
+            <span className="text-[10px] font-medium tracking-widest uppercase text-aw-text-muted">
               Viewing conditions for satellite
             </span>
             <span>
-              <span className="font-medium text-white">
+              <span className="font-medium text-aw-text">
                 {selectedPass?.satname}
               </span>{" "}
               #{selectedPass?.satid}
@@ -85,7 +85,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="text-[10px] font-medium tracking-widest
-        uppercase text-white/30 mb-2"
+        uppercase text-aw-text-muted mb-2"
     >
       {children}
     </div>

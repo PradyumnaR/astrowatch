@@ -181,7 +181,7 @@ export default function PassList() {
     <div>
       <div
         className="flex gap-1 p-1 rounded-lg
-      bg-white/[0.04] border border-aw-border"
+      bg-aw-tint border border-aw-border"
       >
         <button
           onClick={() => setActiveTab("default")}
@@ -190,7 +190,7 @@ export default function PassList() {
           ${
             activeTab === "default"
               ? "bg-aw-purple/20 text-aw-purple"
-              : "text-white/30 hover:text-white/60"
+              : "text-aw-text-muted hover:text-aw-text-sec"
           }`}
         >
           Default Passes
@@ -202,7 +202,7 @@ export default function PassList() {
           ${
             activeTab === "my-passes"
               ? "bg-aw-purple/20 text-aw-purple"
-              : "text-white/30 hover:text-white/60"
+              : "text-aw-text-muted hover:text-aw-text-sec"
           }`}
         >
           My passes
@@ -229,7 +229,7 @@ export default function PassList() {
                 />
               ))}
               {passes.length === 0 && (
-                <p className="text-white/20 text-xs pt-2">
+                <p className="text-aw-text-muted text-xs pt-2">
                   No visible passes tonight
                 </p>
               )}
@@ -242,7 +242,7 @@ export default function PassList() {
         <div className="pt-2">
           {isLoadingWatched && <PassesSkeleton />}
           {!isLoadingWatched && watchedPasses.length === 0 && (
-            <p className="text-white/20 text-[11px] pt-2">
+            <p className="text-aw-text-muted text-[11px] pt-2">
               To view My Passes, navigate to My Satellites → Browse tab and save
               one or more satellites. Then, from the My Satellites table, select
               the Watch Passes action for the satellite you want to view passes
@@ -274,7 +274,7 @@ function PassesSkeleton() {
   return (
     <div className="flex flex-col gap-2">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />
+        <div key={i} className="h-16 rounded-xl bg-aw-tint animate-pulse" />
       ))}
     </div>
   );

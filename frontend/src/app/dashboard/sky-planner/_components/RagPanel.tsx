@@ -70,7 +70,7 @@ export default function RagPanel() {
       {/* section label */}
       <p
         className="text-[10px] font-medium tracking-widest
-        uppercase text-white/25"
+        uppercase text-aw-text-muted"
       >
         RAG Knowledge Panel
       </p>
@@ -84,16 +84,16 @@ export default function RagPanel() {
         >
           <p
             className="text-[10px] font-medium tracking-widest
-          uppercase text-white/25"
+          uppercase text-aw-text-muted"
           >
             Knowledge
           </p>
           <p
-            className="text-[11px] text-white/20
+            className="text-[11px] text-aw-text-muted
           leading-relaxed"
           >
             No knowledge found for{" "}
-            <span className="text-white/30">{selectedPass.satname}</span>. Try
+            <span className="text-aw-text-muted">{selectedPass.satname}</span>. Try
             asking Claude in the chat.
           </p>
         </div>
@@ -103,7 +103,7 @@ export default function RagPanel() {
           {description && (
             <div
               className="flex flex-col gap-2
-              bg-white/[0.03] border border-aw-border
+              bg-aw-tint border border-aw-border
               rounded-xl p-3"
             >
               {/* source badge */}
@@ -113,7 +113,7 @@ export default function RagPanel() {
               {description.metadata.title && (
                 <p
                   className="text-[11px] font-medium
-                  text-white leading-snug"
+                  text-aw-text leading-snug"
                 >
                   {description.metadata.title}
                 </p>
@@ -121,7 +121,7 @@ export default function RagPanel() {
 
               {/* content snippet */}
               <p
-                className="text-[11px] text-white/50
+                className="text-[11px] text-aw-text-sec
                 leading-relaxed line-clamp-4"
               >
                 {description.content}
@@ -148,7 +148,7 @@ export default function RagPanel() {
             <div className="flex flex-col gap-1.5">
               <p
                 className="text-[10px] font-medium
-                tracking-widest uppercase text-white/20"
+                tracking-widest uppercase text-aw-text-muted"
               >
                 Recent news
               </p>
@@ -174,15 +174,15 @@ function NewsItem({ chunk }: { chunk: KnowledgeChunk }) {
       target="_blank"
       rel="noopener noreferrer"
       className="flex flex-col gap-1
-          bg-white/[0.02] border border-aw-border
+          bg-aw-tint border border-aw-border
           rounded-lg px-3 py-2
-          hover:bg-white/[0.05] transition-colors
+          hover:bg-aw-tint-hover transition-colors
           group"
     >
       {/* title */}
       <p
-        className="text-[11px] font-medium text-white/70
-          group-hover:text-white transition-colors
+        className="text-[11px] font-medium text-aw-text-sec
+          group-hover:text-aw-text transition-colors
           line-clamp-2 leading-snug"
       >
         {chunk.metadata.title ?? chunk.content.slice(0, 80)}
@@ -197,8 +197,8 @@ function NewsItem({ chunk }: { chunk: KnowledgeChunk }) {
         >
           {badge.label}
         </span>
-        {ago && <span className="text-[9px] text-white/20">{ago}</span>}
-        <span className="text-[9px] text-white/20 ml-auto">→</span>
+        {ago && <span className="text-[9px] text-aw-text-muted">{ago}</span>}
+        <span className="text-[9px] text-aw-text-muted ml-auto">→</span>
       </div>
     </a>
   );

@@ -15,12 +15,12 @@ export default function ConditionRow({
     <div>
       <div className="flex justify-between items-center mb-1">
         <span
-          className="text-[11px] text-white/40
+          className="text-[11px] text-aw-text-muted
           flex items-center gap-1.5"
         >
           {icon} {label}
         </span>
-        <span className="text-[12px] font-medium text-white">{value}</span>
+        <span className="text-[12px] font-medium text-aw-text">{value}</span>
       </div>
       {children}
     </div>

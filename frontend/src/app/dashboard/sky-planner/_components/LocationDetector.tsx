@@ -10,13 +10,13 @@ export default function LocationDetector() {
     <div className="mb-5">
       <p
         className="text-[10px] font-medium tracking-widest
-        uppercase text-white/30 mb-2"
+        uppercase text-aw-text-muted mb-2"
       >
         Location
       </p>
 
       <div
-        className="flex items-center gap-3 bg-white/5
+        className="flex items-center gap-3 bg-aw-tint
         border border-aw-border rounded-xl p-3"
       >
         {/* icon — changes per status */}
@@ -32,11 +32,11 @@ export default function LocationDetector() {
           {locationStatus === "detecting" ? (
             <>
               <div
-                className="h-3 w-24 bg-white/10
+                className="h-3 w-24 bg-aw-tint-hover
                 rounded animate-pulse mb-1.5"
               />
               <div
-                className="h-2.5 w-16 bg-white/6
+                className="h-2.5 w-16 bg-aw-tint
                 rounded animate-pulse"
               />
             </>
@@ -44,11 +44,11 @@ export default function LocationDetector() {
             <>
               <p
                 className="text-[13px] font-medium
-                text-white"
+                text-aw-text"
               >
                 {location?.name}
               </p>
-              <p className="text-[11px] text-white/30 mt-0.5">
+              <p className="text-[11px] text-aw-text-muted mt-0.5">
                 {locationStatus === "denied" || locationStatus === "error" ? (
                   <span className="text-red-400/70">
                     Using default ·{" "}
