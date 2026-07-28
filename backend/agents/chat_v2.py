@@ -109,11 +109,14 @@ async def stream_chat_with_tools_v2(
     )
     if final_state.get("errors"):
         print(f"[stream_chat_v2]   ⚠️ accumulated errors: {final_state['errors']}")
+        yield f"data: {json.dumps({'type': 'error', 'message': "We couldn't process your request right now. Please try again in a moment"})}\n\n"
 
     final_event = {
         "type": "final",
         "sources": final_state.get("sources", []),
-        "toolsUsed": final_state.get("tools_used", []),
+        "toolsUsed": (
+            [] if final_state.get("errors") else final_state.get("tools_used", [])
+        ),
     }
     print(f"[stream_chat_v2]   → yielding final event: {final_event}")
     yield f"data: {json.dumps(final_event)}\n\n"

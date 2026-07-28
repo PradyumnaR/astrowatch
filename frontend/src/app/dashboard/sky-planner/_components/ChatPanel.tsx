@@ -97,6 +97,13 @@ export default function ChatPanel() {
                 ),
               );
             }
+          } else if (event.type === "error") {
+            setIsLoading(false);
+            setStatusMessage(null);
+            setMessages((prev) => [
+              ...prev,
+              { id: assistantId, role: "assistant", content: event.message },
+            ]);
           } else if (event.type === "final") {
             setMessages((prev) =>
               prev.map((m) =>
@@ -166,6 +173,9 @@ export default function ChatPanel() {
       }
     }
   }
+
+  console.log(messages);
+
   return (
     <div
       className="flex flex-col flex-1
@@ -239,7 +249,9 @@ export default function ChatPanel() {
               ))}
             </div>
             {statusMessage && (
-              <span className="text-[11px] text-aw-text-muted">{statusMessage}</span>
+              <span className="text-[11px] text-aw-text-muted">
+                {statusMessage}
+              </span>
             )}
           </div>
         )}

@@ -5,10 +5,10 @@ import { useAstroStore } from "@/stores/astrowatch";
 
 // ── constants ────────────────────────────────────────
 const W = 680;
-const H = 340;
-const HORIZON_Y = 298;
-const COMPASS_Y = 322;
-const PEAK_MIN_Y = 40;
+const H = 250;
+const HORIZON_Y = 200;
+const COMPASS_Y = 220;
+const PEAK_MIN_Y = 30;
 
 const SAT_COLORS: Record<number, string> = {
   25544: "#2dd4a0",
@@ -283,7 +283,7 @@ export default function SkyCanvas() {
   return (
     <div
       className="relative w-full rounded-xl overflow-hidden
-        border border-aw-border sky-canvas-always-dark"
+        border border-aw-border"
     >
       <style>{`
         @keyframes tw-a {
@@ -355,7 +355,7 @@ export default function SkyCanvas() {
         </defs>
 
         {/* sky background */}
-        <rect x="0" y="0" width={W} height={H} fill="url(#sky-bg)" />
+        <rect x="0" y="0" width={W} height={H} fill="" />
 
         {/* ambient purple glow */}
         <circle
@@ -363,7 +363,7 @@ export default function SkyCanvas() {
           cx={W / 2}
           cy="160"
           r="140"
-          fill="url(#amb-glow)"
+          fill=""
           opacity=".15"
         />
 
