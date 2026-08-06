@@ -22,6 +22,7 @@ from rag.ingest import (
     ingest_wikipedia,
 )
 from rag.embeddings import embed_text
+from mcp_servers.satellite_server import mcp as satellite_mcp
 
 load_dotenv()
 
@@ -43,6 +44,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/mcp/satellite", satellite_mcp.http_app(path="/"))
 
 
 @app.get("/health")
