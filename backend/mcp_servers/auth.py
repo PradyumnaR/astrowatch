@@ -47,6 +47,7 @@ class SupabaseAPIKeyVerifier(AuthProvider):
     """
 
     def __init__(self, server_name: str):
+        super().__init__(resource_base_url=None)
         self.server_name = server_name
 
     async def verify_token(self, token: str) -> AccessToken | None:
@@ -63,12 +64,16 @@ class SupabaseAPIKeyVerifier(AuthProvider):
 
         row = result.data if result else None
 
-        if not row or row.get("revoked_at") is not None:
+        if not isinstance(row, dict) or row.get("revoked_at") is not None:
+            return None
+
+        clerk_user_id = row.get("clerk_user_id")
+        if not isinstance(clerk_user_id, str):
             return None
 
         return AccessToken(
             token=token,
-            client_id=row["clerk_user_id"],
+            client_id=clerk_user_id,
             scopes=[self.server_name],
         )
 

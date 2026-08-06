@@ -1,4 +1,5 @@
 import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -23,6 +24,7 @@ from rag.ingest import (
 )
 from rag.embeddings import embed_text
 from mcp_servers.satellite_server import mcp as satellite_mcp
+from mcp_servers.weather_server import mcp as weather_mcp
 
 load_dotenv()
 
@@ -46,6 +48,7 @@ app.add_middleware(
 )
 
 app.mount("/mcp/satellite", satellite_mcp.http_app(path="/"))
+app.mount("/mcp/weather", weather_mcp.http_app(path="/"))
 
 
 @app.get("/health")
