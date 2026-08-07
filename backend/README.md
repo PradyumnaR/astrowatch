@@ -21,3 +21,16 @@ uv run uvicorn main:app --reload or uv run dev
 ```
 deactivate
 ```
+
+# Run mcp server
+
+```
+Example:
+python -m mcp_servers.knowledge_server
+```
+
+# Open MCP inspector
+
+```
+npx @modelcontextprotocol/inspector python -m mcp_servers.knowledge_server
+```
