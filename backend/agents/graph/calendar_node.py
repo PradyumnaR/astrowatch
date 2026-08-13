@@ -60,8 +60,20 @@ async def _get_valid_access_token(clerk_user_id: str) -> str | None:
                 "grant_type": "refresh_token",
             },
         )
-        resp.raise_for_status()
-        tokens = resp.json()
+
+    if resp.status_code == 400:
+        # Refresh token is dead — almost always because the user revoked
+        # access. Clean up the now-useless row so /api/calendar/status
+        # correctly reports "not connected" too, and return None so
+        # calendar_node's existing not_connected path handles this
+        # gracefully instead of the exception propagating uncaught.
+        _supabase.table("google_oauth_tokens").delete().eq(
+            "clerk_user_id", clerk_user_id
+        ).execute()
+        return None
+
+    resp.raise_for_status()  # any OTHER failure here is genuinely unexpected
+    tokens = resp.json()
 
     new_expires_at = (
         datetime.now(timezone.utc) + timedelta(seconds=tokens["expires_in"])
