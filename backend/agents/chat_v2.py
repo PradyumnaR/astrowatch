@@ -18,17 +18,19 @@ NODE_STATUS_MESSAGES = {
     "satellite": "Checking satellite passes...",
     "weather": "Checking sky conditions...",
     "knowledge": "Searching the knowledge base...",
+    "calendar": "Checking your calendar...",
     "report_writer": "Writing your answer...",
 }
 
 REDUCER_FIELDS = get_reducer_fields(AgentState)
-print(f"[stream_chat_v2] Reducer fields detected: {list(REDUCER_FIELDS.keys())}")
+# print(f"[stream_chat_v2] Reducer fields detected: {list(REDUCER_FIELDS.keys())}")
 
 
 async def stream_chat_with_tools_v2(
     messages: list[ChatMessage],
     location: Location | None = None,
     selected_pass: SatellitePass | None = None,
+    clerk_user_id: str | None = None,
 ):
     print(f"\n[stream_chat_v2] Starting stream — {len(messages)} messages")
 
@@ -36,10 +38,12 @@ async def stream_chat_with_tools_v2(
         "messages": messages,
         "location": location,
         "selected_pass": selected_pass,
+        "clerk_user_id": clerk_user_id,
         "routing": None,
         "passes_data": None,
         "weather_data": None,
         "knowledge_data": None,
+        "calendar_data": None,
         "tools_used": [],
         "sources": [],
         "errors": [],
@@ -69,6 +73,19 @@ async def stream_chat_with_tools_v2(
             print(f"[stream_chat_v2] Node completed: {node_name}")
             if node_output.get("errors"):
                 print(f"[stream_chat_v2]   ⚠️ errors: {node_output['errors']}")
+
+            # NEW — intercept calendar_node's elicitation case and emit
+            # a dedicated event type instead of the normal status text
+            if node_name == "calendar":
+                calendar_data = node_output.get("calendar_data")
+                if calendar_data and calendar_data.action == "needs_confirmation":
+                    elicitation_event = {
+                        "type": "elicitation",
+                        "question": "Which calendar should I use?",
+                        "options": calendar_data.calendar_options,
+                    }
+                    yield f"data: {json.dumps(elicitation_event)}\n\n"
+                    continue  # skip the normal status_msg block below for this node
 
             # skip the "writing your answer" status text for report_writer —
             # real tokens are about to start streaming instead

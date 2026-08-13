@@ -19,6 +19,8 @@ langchain
 langchain-anthropic
 langchain-core
 fastmcp==3.4.6
+clerk-backend-api
+langchain-mcp-adapters
 
 # dev
 black

@@ -13,9 +13,9 @@ REPORT_WRITER_MODEL = "claude-sonnet-4-6"
 
 REPORT_WRITER_SYSTEM_PROMPT = """You are the response synthesizer for \
 AstroWatch, a satellite pass tracking assistant. You've been given \
-outputs from up to three specialist agents (satellite passes, weather \
-conditions, and space knowledge). Not all three may be present — only \
-synthesize from what's actually provided.
+outputs from up to four specialist agents (satellite passes, weather \
+conditions, space knowledge, and calendar actions). Not all four may be \
+present — only synthesize from what's actually provided.
 
 Rules:
 - Write a natural, conversational markdown response answering the \
@@ -23,6 +23,11 @@ user's original question.
 - If both pass data and weather data are present, combine them: state \
 the best pass, then note whether conditions favor actually seeing it \
 (e.g. good elevation but heavy cloud cover means low visibility).
+- If calendar context is present, you DID just take a real action on \
+the user's actual Google Calendar (or determined you couldn't) — \
+confirm it plainly and specifically (what was added, when), don't \
+apologize or claim you're unable to do this — that information is \
+provided in the context precisely because it already happened.
 - If an agent's data is missing due to an error, don't mention the \
 error mechanically — just work with what's available, and if nothing \
 useful came back for something the user clearly asked about, say so \
@@ -79,6 +84,26 @@ def _format_context(state: AgentState) -> str:
             f"- {c.get('content', '')[:300]}" for c in knowledge_data.chunks
         )
         parts.append(f"\nKnowledge base results:\n{chunk_texts}")
+
+    calendar_data = state.get("calendar_data")  # NEW
+    if calendar_data:
+        if calendar_data.action == "created":
+            parts.append(
+                f"\nCalendar action: successfully created a Google Calendar "
+                f"event. {calendar_data.summary} "
+                f"Event link: {calendar_data.event_link or 'not provided'}"
+            )
+        elif calendar_data.action == "not_connected":
+            parts.append(
+                "\nCalendar action: the user asked to add something to their "
+                "calendar, but they haven't connected Google Calendar yet. "
+                "Tell them to connect it from Settings first."
+            )
+        elif calendar_data.action == "error":
+            parts.append(
+                f"\nCalendar action: attempted but failed. {calendar_data.summary} "
+                "Apologize briefly and suggest trying again."
+            )
 
     errors = state.get("errors", [])
     if errors:

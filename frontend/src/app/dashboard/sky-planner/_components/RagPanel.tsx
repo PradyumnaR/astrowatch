@@ -22,7 +22,11 @@ export default function RagPanel() {
       setChunks([]);
       return;
     }
-    fetchKnowledge(selectedPass.satname, selectedPass.satid);
+    try {
+      fetchKnowledge(selectedPass.satname, selectedPass.satid);
+    } catch (err) {
+      console.error("RagPanel error:", err);
+    }
   }, [selectedPass?.satid]);
 
   async function fetchKnowledge(satname: string, norad_id: number) {
@@ -93,8 +97,8 @@ export default function RagPanel() {
           leading-relaxed"
           >
             No knowledge found for{" "}
-            <span className="text-aw-text-muted">{selectedPass.satname}</span>. Try
-            asking Claude in the chat.
+            <span className="text-aw-text-muted">{selectedPass.satname}</span>.
+            Try asking Claude in the chat.
           </p>
         </div>
       ) : (

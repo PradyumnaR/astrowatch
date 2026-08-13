@@ -13,7 +13,7 @@ pip install -r requirements.txt
 # Start server
 
 ```
-uv run uvicorn main:app --reload or uv run dev
+uv run uvicorn main:app --reload
 ```
 
 # Deactivate .venv environment

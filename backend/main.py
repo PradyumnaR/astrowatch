@@ -1,9 +1,10 @@
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from fastapi.responses import StreamingResponse
+from fastmcp.utilities.lifespan import combine_lifespans
 
 from agents.models import (
     ChatRequest,
@@ -25,14 +26,34 @@ from rag.ingest import (
 from rag.embeddings import embed_text
 from mcp_servers.satellite_server import mcp as satellite_mcp
 from mcp_servers.weather_server import mcp as weather_mcp
+from mcp_servers.knowledge_server import mcp as knowledge_mcp
+from mcp_servers.calendar_server import mcp as calendar_mcp
+
+from auth import require_user
 
 load_dotenv()
+
+satellite_app = satellite_mcp.http_app(path="/")
+weather_app = weather_mcp.http_app(path="/")
+knowledge_app = knowledge_mcp.http_app(path="/")
+calendar_app = calendar_mcp.http_app(path="/")
 
 app = FastAPI(
     title="AstroWatch API",
     description="AI-powered satellite tracking backend",
     version="1.0.0",
+    lifespan=combine_lifespans(
+        satellite_app.lifespan,
+        weather_app.lifespan,
+        knowledge_app.lifespan,
+        calendar_app.lifespan,
+    ),
 )
+
+app.mount("/mcp/satellite", satellite_app)
+app.mount("/mcp/weather", weather_app)
+app.mount("/mcp/knowledge", knowledge_app)
+app.mount("/mcp/calendar", calendar_app)
 
 # CORS — allow Next.js frontend
 app.add_middleware(
@@ -46,9 +67,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.mount("/mcp/satellite", satellite_mcp.http_app(path="/"))
-app.mount("/mcp/weather", weather_mcp.http_app(path="/"))
 
 
 @app.get("/health")
@@ -195,12 +213,16 @@ async def chat(request: ChatRequest):
 
 
 @app.post("/agents/chat/v2/stream")
-async def agents_chat_v2_stream(request: ChatRequest):
+async def agents_chat_v2_stream(
+    request: ChatRequest,
+    clerk_user_id: str = Depends(require_user),
+):
     return StreamingResponse(
         stream_chat_with_tools_v2(
             messages=request.messages,
             location=request.location,
             selected_pass=request.selectedPass,
+            clerk_user_id=clerk_user_id,
         ),
         media_type="text/event-stream",
         headers={

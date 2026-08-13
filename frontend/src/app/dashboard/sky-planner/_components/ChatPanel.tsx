@@ -27,18 +27,28 @@ export default function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null); // NEW
+  const [elicitation, setElicitation] = useState<{
+    question: string;
+    options: { label: string; value: string }[];
+  } | null>(null);
 
-  async function submitMessage() {
-    if (!input.trim() || isLoading) return;
+  function handleElicitationChoice(option: { label: string; value: string }) {
+    submitMessage(option.label);
+  }
+
+  async function submitMessage(overrideText?: string) {
+    const text = overrideText ?? input;
+    if (!text.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: text.trim(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    setElicitation(null);
     setIsLoading(true);
     setStatusMessage("Understanding your question...");
 
@@ -104,6 +114,14 @@ export default function ChatPanel() {
               ...prev,
               { id: assistantId, role: "assistant", content: event.message },
             ]);
+          } else if (event.type === "elicitation") {
+            // NEW
+            setIsLoading(false);
+            setStatusMessage(null);
+            setElicitation({
+              question: event.question,
+              options: event.options,
+            });
           } else if (event.type === "final") {
             setMessages((prev) =>
               prev.map((m) =>
@@ -174,8 +192,6 @@ export default function ChatPanel() {
     }
   }
 
-  console.log(messages);
-
   return (
     <div
       className="flex flex-col flex-1
@@ -214,7 +230,7 @@ export default function ChatPanel() {
 
         {/* message list */}
         {messages.map((msg, i) => (
-          <div key={msg.id}>
+          <div key={i}>
             <MessageBubble key={msg.id} msg={msg} />
             {msg.toolsUsed && msg.toolsUsed.length > 0 && (
               <div className="flex flex-wrap gap-1 pl-10 pt-2 items-center text-cyan-400">
@@ -234,6 +250,26 @@ export default function ChatPanel() {
             )}
           </div>
         ))}
+
+        {/* elicitation confirmation card */}
+        {elicitation && (
+          <div className="rounded-xl border border-aw-border bg-aw-tint p-3 flex flex-col gap-2">
+            <p className="text-[13px] text-aw-text">{elicitation.question}</p>
+            <div className="flex flex-col gap-1.5">
+              {elicitation.options.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => handleElicitationChoice(opt)}
+                  className="text-left text-[13px] px-3 py-2 rounded-lg
+                    border border-aw-border hover:border-aw-purple
+                    hover:bg-aw-purple/5 transition-colors"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* streaming indicator — dots + live status while waiting */}
         {isLoading && (
