@@ -29,6 +29,7 @@ PORT = os.getenv(
     "PORT", "8000"
 )  # Render sets this at runtime; 8000 is just the local dev fallback
 CALENDAR_MCP_URL = f"http://localhost:{PORT}/mcp/calendar"
+CALENDAR_MCP_SERVICE_KEY = os.getenv("CALENDAR_MCP_SERVICE_KEY")
 
 _supabase = get_supabase()
 
@@ -161,6 +162,7 @@ async def calendar_node(state: AgentState) -> dict:
             "calendar": StreamableHttpConnection(
                 transport="streamable_http",
                 url=CALENDAR_MCP_URL,
+                headers={"Authorization": f"Bearer {CALENDAR_MCP_SERVICE_KEY}"},  # NEW
             )
         }
         client = MultiServerMCPClient(connections)

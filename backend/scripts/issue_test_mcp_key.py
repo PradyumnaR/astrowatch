@@ -18,7 +18,7 @@ load_dotenv()
 
 from mcp_servers.auth import _hash_key, _supabase  # reuse the exact same hashing logic
 
-VALID_SERVERS = {"satellite", "weather", "knowledge"}
+VALID_SERVERS = {"satellite", "weather", "knowledge", "calendar"}
 
 
 def issue_key(server_name: str, clerk_user_id: str = "test_user_local_dev") -> str:
