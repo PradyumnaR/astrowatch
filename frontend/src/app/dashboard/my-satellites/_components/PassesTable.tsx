@@ -263,6 +263,12 @@ export default function PassTable() {
               >
                 Direction
               </TableHead>
+              <TableHead
+                className="text-aw-text-muted text-[10px]
+                font-medium uppercase tracking-widest"
+              >
+                Actions
+              </TableHead>
             </TableRow>
           </TableHeader>
 
@@ -334,6 +340,46 @@ export default function PassTable() {
                   >
                     {pass.startAzCompass} → {azToCompass(pass.endAz)}
                   </span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {/* watch button */}
+                    {(() => {
+                      const key = `${pass.satid}-${pass.startUTC}`;
+                      const watched = watchedKeys.has(key);
+                      const loading = watchingId === key;
+                      const locked = atPassLimit && !watched;
+
+                      return (
+                        <button
+                          onClick={() =>
+                            locked ? setShowUpgrade(true) : handleWatch(pass)
+                          }
+                          disabled={watched || !!loading}
+                          className={`cursor-pointer flex items-center gap-1.5
+                            text-[10px] border rounded-full
+                            px-2.5 py-1 transition-colors
+                            ${
+                              watched
+                                ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 cursor-default"
+                                : loading
+                                  ? "border-aw-border text-aw-text-muted cursor-wait"
+                                  : locked
+                                    ? "border-aw-amber/30 text-aw-amber/60 bg-aw-amber/6"
+                                    : "border-aw-border text-aw-text-muted hover:text-aw-teal hover:border-aw-teal/40"
+                            }`}
+                        >
+                          {watched
+                            ? "★ Watching"
+                            : loading
+                              ? "..."
+                              : locked
+                                ? "🔒"
+                                : "☆ Watch"}
+                        </button>
+                      );
+                    })()}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
