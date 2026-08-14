@@ -203,7 +203,9 @@ export default function PassTable() {
       {/* header */}
       <div className="flex items-center justify-between px-1">
         <div>
-          <p className="text-[13px] font-medium text-aw-text">Upcoming passes</p>
+          <p className="text-[13px] font-medium text-aw-text">
+            Upcoming passes
+          </p>
           <p className="text-[11px] text-aw-text-muted mt-0.5">
             {dateRange} · {savedSatellites.length} satellites · {sorted.length}{" "}
             passes
@@ -261,12 +263,6 @@ export default function PassTable() {
               >
                 Direction
               </TableHead>
-              <TableHead
-                className="text-aw-text-muted text-[10px]
-                font-medium uppercase tracking-widest"
-              >
-                Notify
-              </TableHead>
             </TableRow>
           </TableHeader>
 
@@ -294,7 +290,9 @@ export default function PassTable() {
                       >
                         {pass.satname}
                       </p>
-                      <p className="text-[10px] text-aw-text-muted">#{pass.satid}</p>
+                      <p className="text-[10px] text-aw-text-muted">
+                        #{pass.satid}
+                      </p>
                     </div>
                   </div>
                 </TableCell>
@@ -336,60 +334,6 @@ export default function PassTable() {
                   >
                     {pass.startAzCompass} → {azToCompass(pass.endAz)}
                   </span>
-                </TableCell>
-
-                {/* email */}
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleEmail(pass)}
-                      className="flex items-center gap-1.5
-                      text-[10px] text-aw-text-muted
-                      border border-aw-border
-                      rounded-full px-2.5 py-1
-                      hover:text-aw-purple
-                      hover:border-aw-purple/40
-                      transition-colors"
-                    >
-                      ✉ Email
-                    </button>
-                    {/* watch button */}
-                    {(() => {
-                      const key = `${pass.satid}-${pass.startUTC}`;
-                      const watched = watchedKeys.has(key);
-                      const loading = watchingId === key;
-                      const locked = atPassLimit && !watched;
-
-                      return (
-                        <button
-                          onClick={() =>
-                            locked ? setShowUpgrade(true) : handleWatch(pass)
-                          }
-                          disabled={watched || !!loading}
-                          className={`cursor-pointer flex items-center gap-1.5
-                            text-[10px] border rounded-full
-                            px-2.5 py-1 transition-colors
-                            ${
-                              watched
-                                ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 cursor-default"
-                                : loading
-                                  ? "border-aw-border text-aw-text-muted cursor-wait"
-                                  : locked
-                                    ? "border-aw-amber/30 text-aw-amber/60 bg-aw-amber/6"
-                                    : "border-aw-border text-aw-text-muted hover:text-aw-teal hover:border-aw-teal/40"
-                            }`}
-                        >
-                          {watched
-                            ? "★ Watching"
-                            : loading
-                              ? "..."
-                              : locked
-                                ? "🔒"
-                                : "☆ Watch"}
-                        </button>
-                      );
-                    })()}
-                  </div>
                 </TableCell>
               </TableRow>
             ))}

@@ -87,3 +87,15 @@ export interface KnowledgeChunk {
 }
 
 export type UserPlan = "standard" | "pro";
+
+export type McpServerName = "satellite" | "weather" | "knowledge";
+
+// a row from mcp_api_keys — the raw key is never returned by GET,
+// only once by POST at creation time
+export interface McpApiKey {
+  id: string;
+  serverName: McpServerName;
+  label: string | null;
+  createdAt: string;
+  revokedAt: string | null;
+}

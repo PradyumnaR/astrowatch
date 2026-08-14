@@ -54,7 +54,10 @@ async def insert_chunk(
         )
         .execute()
     )
-    return result.data[0] if result.data else {}
+    if not result.data or not isinstance(result.data, list):
+        return {}
+    row = result.data[0]
+    return row if isinstance(row, dict) else {}
 
 
 async def insert_chunks_batch(
@@ -99,7 +102,9 @@ async def search_knowledge(
         },
     ).execute()
 
-    return result.data if result.data else []
+    if not result.data or not isinstance(result.data, list):
+        return []
+    return [row for row in result.data if isinstance(row, dict)]
 
 
 async def chunk_exists(source: str, metadata: dict) -> bool:

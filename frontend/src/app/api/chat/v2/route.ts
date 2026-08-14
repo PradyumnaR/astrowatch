@@ -6,11 +6,14 @@ const BACKEND_URL =
 
 export async function POST(req: Request) {
   try {
-    const { userId } = await auth();
+    const { userId, getToken } = await auth();
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const token = await getToken();
+    console.log("Token exists:", !!token, "length:", token?.length);
 
     const body = await req.json();
     const { messages, location, selectedPass } = body;
@@ -22,7 +25,10 @@ export async function POST(req: Request) {
     // call FastAPI backend
     const response = await fetch(`${BACKEND_URL}/agents/chat/v2/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({
         messages,
         location,
@@ -31,6 +37,8 @@ export async function POST(req: Request) {
     });
 
     if (!response.ok || !response.body) {
+      const errorBody = await response.text();
+      console.error(`Backend request failed: ${response.status}`, errorBody);
       throw new Error(`Backend request failed: ${response.status}`);
     }
 
@@ -57,7 +65,7 @@ export async function POST(req: Request) {
     };
 
     return new Response(`data: ${JSON.stringify(fallbackEvent)}\n\n`, {
-      status: 200,
+      status: 500,
       headers: { "Content-Type": "text/event-stream" },
     });
   }

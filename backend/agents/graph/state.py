@@ -13,11 +13,11 @@ from agents.models import ChatMessage, Location, SatellitePass
 class RoutingDecision(BaseModel):
     """Structured output produced by the orchestrator node."""
 
-    intent: Literal["passes", "weather", "knowledge", "all"] = Field(
+    intent: Literal["passes", "weather", "knowledge", "calendar", "all"] = Field(
         description="Primary intent of the user's latest message"
     )
-    agents_to_call: list[Literal["satellite", "weather", "knowledge"]] = Field(
-        description="Which specialist agents to invoke, possibly in parallel"
+    agents_to_call: list[Literal["satellite", "weather", "knowledge", "calendar"]] = (
+        Field(description="Which specialist agents to invoke, possibly in parallel")
     )
     reasoning: str = Field(
         description="Brief explanation of why this routing was chosen"
@@ -62,11 +62,23 @@ class KnowledgeData(BaseModel):
     citations: list[str] = Field(default_factory=list)
 
 
+class CalendarData(BaseModel):
+    """Structured output from the Calendar Agent."""
+
+    action: Literal["created", "needs_confirmation", "not_connected", "error"] = "error"
+    event_link: Optional[str] = None  # Google's htmlLink, on success
+    calendar_options: list[dict] = Field(
+        default_factory=list
+    )  # [{"label": ..., "value": calendar_id}] — only populated when action == "needs_confirmation"
+    summary: str = ""  # human-readable outcome, read by report_writer
+
+
 class AgentState(TypedDict):
     # ── input (reuses existing request models directly) ──────────
     messages: list[ChatMessage]
     location: Optional[Location]
     selected_pass: Optional[SatellitePass]
+    clerk_user_id: Optional[str]
 
     # ── routing ────────────────────────────────────────────────────
     routing: Optional[RoutingDecision]
@@ -75,6 +87,7 @@ class AgentState(TypedDict):
     passes_data: Optional[PassesData]
     weather_data: Optional[WeatherData]
     knowledge_data: Optional[KnowledgeData]
+    calendar_data: Optional[CalendarData]
 
     # ── accumulated across parallel branches — needs a reducer ─────
     tools_used: Annotated[list[str], operator.add]

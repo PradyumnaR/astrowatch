@@ -4,12 +4,6 @@ import Markdown from "./Markdown";
 export default function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === "user";
 
-  // // extract text from parts (AI SDK v5+ uses parts not content)
-  // const text = msg.parts
-  //   .filter((p) => p.type === "text")
-  //   .map((p) => p.text)
-  //   .join("");
-
   return (
     <div
       className={`flex gap-2 items-start

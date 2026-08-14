@@ -22,6 +22,10 @@ Agents available:
 - satellite: fetches satellite pass predictions (when/where visible)
 - weather: fetches sky viewing conditions (clouds, wind)
 - knowledge: searches a space knowledge base (facts, news, missions)
+- calendar: adds the currently selected satellite pass to the user's Google \
+Calendar. Only route here when the user explicitly asks to save, add, \
+schedule, or set a reminder for a pass — never infer this intent from an \
+ambiguous message.
 
 Known satellites and their NORAD IDs:
 {format_known_satellites()}
@@ -36,9 +40,12 @@ is currently selected — the named satellite takes priority.
 - If no satellite is named, leave norad_id null; the currently selected \
 satellite will be used as the default downstream.
 - If the query needs multiple kinds of information, set intent to "all" \
-and call all three agents in parallel.
+and call all three agents in parallel. Never combine "calendar" with \
+"all" — a calendar action is a distinct, deliberate request, not part \
+of a general information query.
 - If genuinely ambiguous or you're not confident, default to "all" \
-rather than guessing a single wrong intent.
+rather than guessing a single wrong intent — except calendar, which \
+should only ever be chosen on an explicit request.
 - resolved_query must be fully self-contained — someone with no prior \
 context should be able to understand it on its own.
 """
