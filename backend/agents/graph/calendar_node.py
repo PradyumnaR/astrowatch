@@ -30,11 +30,12 @@ PORT = os.getenv(
 )  # Render sets this at runtime; 8000 is just the local dev fallback
 CALENDAR_MCP_URL = f"http://localhost:{PORT}/mcp/calendar"
 
+_supabase = get_supabase()
+
 
 async def _get_valid_access_token(clerk_user_id: str) -> str | None:
     """Looks up stored Google tokens, refreshing via refresh_token if the
     access_token is expired or close to it."""
-    _supabase = get_supabase()
     result = (
         _supabase.table("google_oauth_tokens")
         .select("*")
@@ -86,6 +87,44 @@ async def _get_valid_access_token(clerk_user_id: str) -> str | None:
     return tokens["access_token"]
 
 
+async def _handle_tool_error(
+    result, clerk_user_id: str, action_label: str
+) -> dict | None:
+    """
+    Checks an MCP CallToolResult for an error. Returns a dict to
+    return-early with if something went wrong, or None if the call
+    succeeded and calendar_node should keep going.
+
+    Centralizes the auth-revoked detection so it only needs to be
+    correct in one place — both list_calendars and create_event share
+    this same failure shape (a dead access_token), and any future tool
+    call added to this file gets the same handling for free.
+    """
+    if not result.isError:
+        return None
+
+    error_text = "".join(c.text for c in result.content if isinstance(c, TextContent))
+
+    if "401" in error_text or "invalid_token" in error_text.lower():
+        _supabase.table("google_oauth_tokens").delete().eq(
+            "clerk_user_id", clerk_user_id
+        ).execute()
+        return {
+            "calendar_data": CalendarData(
+                action="not_connected",
+                summary="Google Calendar access was revoked. Please reconnect.",
+            )
+        }
+
+    return {
+        "calendar_data": CalendarData(
+            action="error",
+            summary=f"Calendar error during {action_label}: {error_text}",
+        ),
+        "errors": [f"calendar_node_error: {error_text}"],
+    }
+
+
 async def calendar_node(state: AgentState) -> dict:
     clerk_user_id = state.get("clerk_user_id")
     selected_pass = state.get("selected_pass")
@@ -132,16 +171,15 @@ async def calendar_node(state: AgentState) -> dict:
             # CalendarList shape — worth confirming against a real
             # list_calendars response the first time this runs, same as
             # every other MCP tool wrapper we've built this week.
-            # tools_result = await session.list_tools()
-            # print("Available tools for this token:")
-            # for tool in tools_result.tools:
-            #     print(f"  - {tool.name}: {tool.description}")
             calendars_result = await session.call_tool(
                 "list_calendars", {"access_token": access_token}  # was {} before
             )
+            error = await _handle_tool_error(
+                calendars_result, clerk_user_id, "list_calendars"
+            )
+            if error:
+                return error
             calendars = (calendars_result.structuredContent or {}).get("calendars", [])
-
-            print("calendars_result =>", calendars_result)
 
             writable = [
                 c
@@ -196,18 +234,11 @@ async def calendar_node(state: AgentState) -> dict:
                 },
             )
 
-            print("create_event =>", event_result)
-
-            if event_result.isError:
-                error_text = "".join(
-                    c.text for c in event_result.content if isinstance(c, TextContent)
-                )
-                return {
-                    "calendar_data": CalendarData(
-                        action="error", summary=f"Calendar error: {error_text}"
-                    ),
-                    "errors": [f"calendar_node_error: {error_text}"],
-                }
+            error = await _handle_tool_error(
+                event_result, clerk_user_id, "create_event"
+            )
+            if error:
+                return error
             event = event_result.structuredContent or {}
 
             return {
