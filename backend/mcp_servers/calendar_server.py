@@ -21,10 +21,21 @@ from typing import Annotated
 import httpx
 from fastmcp import FastMCP
 from pydantic import Field
+from mcp_servers.auth import (
+    InMemoryRateLimiter,
+    RateLimitMiddleware,
+    SupabaseAPIKeyVerifier,
+)
 
 CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
 
-mcp = FastMCP(name="astrowatch-calendar")  # no auth= — internal-only server
+auth = SupabaseAPIKeyVerifier(server_name="calendar")
+mcp = FastMCP(
+    name="astrowatch-calendar", auth=auth
+)  # was: FastMCP(name="astrowatch-calendar") — no auth
+mcp.add_middleware(
+    RateLimitMiddleware(InMemoryRateLimiter(max_calls=30, window_seconds=60))
+)
 
 
 @mcp.tool()
