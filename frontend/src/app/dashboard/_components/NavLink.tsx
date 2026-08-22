@@ -6,9 +6,11 @@ import Link from "next/link";
 export default function NavLink({
   href,
   children,
+  onClick,
 }: {
   href: string;
   children: React.ReactNode;
+  onClick?: () => void;
 }) {
   const pathname = usePathname();
   const isActive = pathname === href;
@@ -16,6 +18,7 @@ export default function NavLink({
   return (
     <Link
       href={href}
+      onClick={onClick}
       className={[
         "px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors",
         isActive
