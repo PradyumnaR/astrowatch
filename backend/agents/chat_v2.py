@@ -47,6 +47,7 @@ async def stream_chat_with_tools_v2(
         "tools_used": [],
         "sources": [],
         "errors": [],
+        "guardrail_events": [],
         "final_response": None,
     }
 
@@ -73,6 +74,14 @@ async def stream_chat_with_tools_v2(
             print(f"[stream_chat_v2] Node completed: {node_name}")
             if node_output.get("errors"):
                 print(f"[stream_chat_v2]   ⚠️ errors: {node_output['errors']}")
+
+            if node_output.get("guardrail_events"):
+                # Not a failure — just visibility into a guardrail
+                # correcting something, for now via logs until the eval
+                # pipeline has somewhere structured to send these.
+                print(
+                    f"[stream_chat_v2]   🛡️ guardrail: {node_output['guardrail_events']}"
+                )
 
             # NEW — intercept calendar_node's elicitation case and emit
             # a dedicated event type instead of the normal status text

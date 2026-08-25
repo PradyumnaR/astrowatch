@@ -11,6 +11,7 @@ from agents.graph.state import AgentState, RoutingDecision
 from typing import cast
 
 from utils.format_known_satellites import format_known_satellites
+from guardrails.orchestrator_guardrails import enforce_routing_policy
 
 ORCHESTRATOR_MODEL = "claude-haiku-4-5-20251001"
 
@@ -89,7 +90,15 @@ def orchestrator_node(state: AgentState) -> dict:
             ),
         )
 
-        return {"routing": decision}
+        latest_message = state["messages"][-1].content if state["messages"] else ""
+        policy_result = enforce_routing_policy(decision, latest_message)
+
+        result: dict = {"routing": policy_result.routing}
+        if policy_result.overridden:
+            result["guardrail_events"] = [
+                f"orchestrator_guardrail: {r}" for r in policy_result.reasons
+            ]
+        return result
     except Exception as e:
         # graceful fallback — never crash the graph on a bad classification
         last_message = state["messages"][-1].content if state["messages"] else ""
