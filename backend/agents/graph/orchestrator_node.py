@@ -91,6 +91,7 @@ def orchestrator_node(state: AgentState) -> dict:
         )
 
         latest_message = state["messages"][-1].content if state["messages"] else ""
+        print(f"[orchestrator_guardrail debug] latest_message = {latest_message!r}")
         policy_result = enforce_routing_policy(decision, latest_message)
 
         result: dict = {"routing": policy_result.routing}

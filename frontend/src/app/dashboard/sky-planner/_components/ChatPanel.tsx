@@ -33,7 +33,7 @@ export default function ChatPanel() {
   } | null>(null);
 
   function handleElicitationChoice(option: { label: string; value: string }) {
-    submitMessage(option.label);
+    submitMessage(`Add it to my ${option.label} calendar`);
   }
 
   async function submitMessage(overrideText?: string) {

@@ -133,9 +133,9 @@ async def stream_chat_with_tools_v2(
     print(
         f"[stream_chat_v2] Graph complete. Tools used: {final_state.get('tools_used', [])}"
     )
-    if final_state.get("errors"):
-        print(f"[stream_chat_v2]   ⚠️ accumulated errors: {final_state['errors']}")
-        yield f"data: {json.dumps({'type': 'error', 'message': "We couldn't process your request right now. Please try again in a moment"})}\n\n"
+    # if final_state.get("errors"):
+    #     print(f"[stream_chat_v2]   ⚠️ accumulated errors: {final_state['errors']}")
+    #     yield f"data: {json.dumps({'type': 'error', 'message': "We couldn't process your request right now. Please try again in a moment"})}\n\n"
 
     final_event = {
         "type": "final",

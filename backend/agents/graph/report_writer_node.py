@@ -136,6 +136,18 @@ def _format_context(state: AgentState) -> str:
                 f"\nCalendar action: attempted but failed. {calendar_data.summary} "
                 "Apologize briefly and suggest trying again."
             )
+    else:
+        # Explicit, not silent — leaving this out entirely let the model
+        # fill the gap on its own (observed: it fabricated a fake
+        # calendar-success claim when the user's message just mentioned
+        # "calendar" but no calendar action was ever requested/performed).
+        parts.append(
+            "\nCalendar action: none — no calendar action was requested or "
+            "performed this turn. Do not mention adding, saving, or "
+            "scheduling anything to the calendar, and do not reference a "
+            "calendar agent, confirmation link, or any calendar outcome — "
+            "none of that happened."
+        )
 
     errors = state.get("errors", [])
     if errors:
