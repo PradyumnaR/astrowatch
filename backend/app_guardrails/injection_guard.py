@@ -9,9 +9,9 @@ pattern list would miss.
 This is deliberately heavier than everything else in guardrails/ — it
 needs `transformers` + `torch` (see requirements-ml.txt, NOT bundled into
 the default requirements.txt) and downloads a gated model from Hugging
-Face on first use (accept the license at
+face on first use (accept the license at
 https://huggingface.co/meta-llama/Llama-Prompt-Guard-2-86M and set
-HUGGINGFACE_TOKEN). That's real memory + cold-start cost on a small
+HF_TOKEN in your environment). That's real memory + cold-start cost on a small
 Render instance, so it's opt-in via PROMPT_GUARD_ENABLED — unset/false
 uses the regex heuristic from calendar_guardrails.py instead, unchanged
 in behavior from last week.
@@ -56,7 +56,7 @@ def _get_classifier():
 def _regex_fallback(text: str) -> InjectionVerdict:
     # Local import — keeps this module usable even if calendar_guardrails
     # ever gains heavier deps of its own.
-    from guardrails.calendar_guardrails import detect_prompt_injection
+    from app_guardrails.calendar_guardrails import detect_prompt_injection
 
     flagged = detect_prompt_injection(text)
     return InjectionVerdict(flagged, 1.0 if flagged else 0.0, "regex_fallback")

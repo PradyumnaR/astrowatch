@@ -22,7 +22,7 @@ fallback otherwise), just applied to a different surface.
 
 from dataclasses import dataclass, field
 
-from guardrails.injection_guard import classify_injection
+from app_guardrails.injection_guard import classify_injection
 
 # Real reference chunks are prose/facts. Anything wildly longer than
 # what knowledge_node ever asks for (limit=3 per sub-query, and the

@@ -10,6 +10,20 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+# Optional — only needed if PROMPT_GUARD_ENABLED=true (see
+
+### guardrails/injection_guard.py). Not installed by default: torch is a
+
+### multi-hundred-MB dependency and this feature is off unless explicitly
+
+### opted into, so it's kept out of the default `pip install -r
+
+### requirements.txt` deploy path.
+
+```
+pip install -r requirements.txt -r requirements-ml.txt
+```
+
 # Start server
 
 ```

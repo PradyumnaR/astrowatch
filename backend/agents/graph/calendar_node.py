@@ -20,7 +20,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from agents.graph.state import AgentState, CalendarData
 from rag.database import get_supabase
 from langchain_mcp_adapters.sessions import Connection, StreamableHttpConnection
-from guardrails.calendar_guardrails import (
+from app_guardrails.calendar_guardrails import (
     calendar_write_throttle,
     compute_dedupe_key,
     detect_prompt_injection,

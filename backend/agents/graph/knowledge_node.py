@@ -2,7 +2,7 @@
 
 from agents.knowledge import search_knowledge_base
 from agents.graph.state import AgentState, KnowledgeData
-from guardrails.knowledge_guardrails import screen_knowledge_chunks
+from app_guardrails.knowledge_guardrails import screen_knowledge_chunks
 
 
 def _build_sub_quires(resolved_query: str, norad_id: int | None) -> list[str]:

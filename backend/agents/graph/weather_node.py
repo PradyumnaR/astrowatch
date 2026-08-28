@@ -9,6 +9,11 @@ from typing import Literal
 from utils.format_to_client_time import format_to_client_time
 from tools.weather import get_weather, get_weather_at_time
 from agents.graph.state import AgentState, WeatherData
+from app_guardrails.tool_call_guardrails import (
+    ToolParamError,
+    validate_latitude,
+    validate_longitude,
+)
 
 
 def _go_no_go(cloud_cover: float | None) -> Literal["go", "no-go", "marginal"]:
@@ -31,6 +36,17 @@ async def weather_node(state: AgentState) -> dict:
             "weather_data": None,
         }
     tz_name = location.timezone or "UTC"
+
+    # Guardrail — lat/lng are client-supplied and unchecked before this
+    # point. See app_guardrails/tool_call_guardrails.py.
+    try:
+        validate_latitude(location.lat)
+        validate_longitude(location.lng)
+    except ToolParamError as e:
+        return {
+            "errors": [f"weather_node_guardrail: {e}"],
+            "weather_data": None,
+        }
 
     try:
         if selected_pass is not None and selected_pass.startUTC:

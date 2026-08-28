@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass, field
 
 from agents.graph.state import RoutingDecision
-from guardrails.injection_guard import classify_injection
+from app_guardrails.injection_guard import classify_injection
 
 MAX_RESOLVED_QUERY_LENGTH = 2000
 

@@ -11,7 +11,7 @@ from agents.graph.state import AgentState, RoutingDecision
 from typing import cast
 
 from utils.format_known_satellites import format_known_satellites
-from guardrails.orchestrator_guardrails import enforce_routing_policy
+from app_guardrails.orchestrator_guardrails import enforce_routing_policy
 
 ORCHESTRATOR_MODEL = "claude-haiku-4-5-20251001"
 

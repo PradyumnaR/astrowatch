@@ -4,6 +4,13 @@ from utils.format_to_client_time import format_to_client_time
 from tools.passes import get_satellite_passes
 from agents.graph.state import AgentState, PassesData
 
+from app_guardrails.tool_call_guardrails import (
+    ToolParamError,
+    validate_latitude,
+    validate_longitude,
+    validate_norad_id,
+)
+
 # Fallback when no satellite is currently selected in the frontend
 DEFAULT_NORAD_ID = 25544  # ISS
 
@@ -40,6 +47,20 @@ async def satellite_node(state: AgentState) -> dict:
             "passes_data": None,
         }
     tz_name = location.timezone or "UTC"
+
+    # Guardrail — norad_id may be the orchestrator LLM's own inference
+    # (routing.norad_id), and lat/lng are client-supplied. Neither is
+    # checked before this point; reject anything implausible before it
+    # reaches the real N2YO API. See app_guardrails/tool_call_guardrails.py.
+    try:
+        validate_norad_id(norad_id)
+        validate_latitude(location.lat)
+        validate_longitude(location.lng)
+    except ToolParamError as e:
+        return {
+            "errors": [f"satellite_node_guardrail: {e}"],
+            "passes_data": None,
+        }
 
     try:
         raw = await get_satellite_passes(
