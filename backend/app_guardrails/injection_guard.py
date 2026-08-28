@@ -66,6 +66,8 @@ def classify_injection(text: str) -> InjectionVerdict:
     if not text:
         return InjectionVerdict(False, 0.0, "regex_fallback")
 
+    print(f"PROMPT_GUARD_ENABLED: {PROMPT_GUARD_ENABLED} ")
+
     if not PROMPT_GUARD_ENABLED:
         return _regex_fallback(text)
 
@@ -73,8 +75,10 @@ def classify_injection(text: str) -> InjectionVerdict:
         classifier = _get_classifier()
         result = classifier(text[:512])[0]  # model has a fixed context window
         is_malicious = result["label"].lower() in _MALICIOUS_LABELS
+        print(f"Classifier Result{result} \nis_malicious: {is_malicious}")
         return InjectionVerdict(is_malicious, float(result["score"]), "prompt_guard")
-    except Exception:
+    except Exception as e:
+        print(f"Falling back to regex vallidation because of error: \n{e}")
         # A classifier failure (model not downloaded, OOM, etc.) should
         # never take the orchestrator down with it — fail open to the
         # cheap heuristic rather than blocking every routing decision.
