@@ -2,7 +2,7 @@ import ChatPanel from "./_components/ChatPanel";
 import LocationDetector from "./_components/LocationDetector";
 import PassList from "./_components/PassList";
 import RagPanel from "./_components/RagPanel";
-import SkyCanvas from "./_components/SkyCanvas-v2";
+import SkyPlannerTabs from "./_components/SkyPlannerTabs";
 import WeatherPanel from "./_components/WeatherPanel";
 
 export default function SkyPlannerPage({}) {
@@ -16,7 +16,7 @@ export default function SkyPlannerPage({}) {
 
       {/* Main content */}
       <main className="overflow-y-auto p-2 min-w-[300px] flex flex-col gap-2">
-        <SkyCanvas />
+        <SkyPlannerTabs />
         <ChatPanel />
       </main>
 

@@ -28,6 +28,19 @@ export interface SatellitePass {
   moonIllumination?: number;
 }
 
+// one per-second sample from N2YO's /positions endpoint
+export interface SatellitePosition {
+  azimuth: number;
+  elevation: number;
+  satlatitude: number;
+  satlongitude: number;
+  sataltitude: number;
+  timestamp: number; // unix seconds
+  ra?: number;
+  dec?: number;
+  eclipsed?: boolean;
+}
+
 export interface WeatherData {
   // current conditions for display
   viewingScore: number;
