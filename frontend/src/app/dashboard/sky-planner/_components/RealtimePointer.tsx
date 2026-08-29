@@ -38,9 +38,10 @@ function estimatePosition(pass: SatellitePass, nowSec: number) {
 
 function formatCountdown(totalSeconds: number): string {
   const s = Math.max(0, Math.round(totalSeconds));
-  const m = Math.floor(s / 60);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  return `${m}:${sec.toString().padStart(2, "0")}`;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
 }
 
 export default function RealtimePointer() {
