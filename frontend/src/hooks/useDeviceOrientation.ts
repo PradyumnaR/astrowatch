@@ -25,9 +25,12 @@ interface RequestableDeviceOrientationEvent {
 // every raw reading straight into state makes the arrow visibly flicker.
 // SMOOTHING blends each new reading toward the previous one (exponential
 // moving average) instead of snapping to it; EMIT_INTERVAL_MS caps how
-// often that smoothed value actually triggers a re-render.
-const SMOOTHING = 0.15;
-const EMIT_INTERVAL_MS = 100;
+// often that smoothed value actually triggers a re-render. EMIT_INTERVAL_MS
+// is kept equal to the arrow's own CSS transition duration (see
+// RealtimePointer.tsx's CompassArrow) so each transition finishes before
+// the next update arrives, instead of being interrupted mid-flight.
+const SMOOTHING = 0.12;
+const EMIT_INTERVAL_MS = 150;
 
 // Circular-safe exponential smoothing — averaging angles directly (e.g.
 // naively averaging 359° and 1° as (359+1)/2 = 180°) is wrong because the

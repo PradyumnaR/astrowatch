@@ -44,6 +44,64 @@ function formatCountdown(totalSeconds: number): string {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
 }
 
+// Rotating compass needle, isolated in its own component so its rotation-
+// unwrapping state/effect can run unconditionally (needed for hooks rules)
+// without complicating RealtimePointer's own early-return logic — this
+// only ever mounts while a compass heading is actually available.
+function CompassArrow({
+  targetAz,
+  heading,
+}: {
+  targetAz: number;
+  heading: number;
+}) {
+  // wrapped into [0, 360) — on its own this would make the arrow spin
+  // almost a full circle whenever a real change crosses the 359°→0° seam
+  // (most visible right as you align with the satellite, since that's
+  // exactly where rotation sits near 0°/360°).
+  const rawRotation = (targetAz - heading + 360) % 360;
+  const turnDiff = ((targetAz - heading + 540) % 360) - 180;
+
+  // Unwrapped, continuous rotation used for the actual CSS transform —
+  // tracked across renders via a ref (safe here: only read/written inside
+  // an effect, never during render) so the arrow always takes the short
+  // path instead of snapping across the seam.
+  const [displayRotation, setDisplayRotation] = useState(rawRotation);
+  const prevRawRef = useRef(rawRotation);
+  const unwrappedRef = useRef(rawRotation);
+
+  useEffect(() => {
+    const delta = ((rawRotation - prevRawRef.current + 540) % 360) - 180;
+    unwrappedRef.current += delta;
+    prevRawRef.current = rawRotation;
+    setDisplayRotation(unwrappedRef.current);
+  }, [rawRotation]);
+
+  return (
+    <>
+      <div className="relative w-[150px] h-[150px]">
+        <div className="absolute inset-0 rounded-full border border-aw-border bg-aw-tint" />
+        <div
+          className="absolute inset-0 transition-transform duration-150 ease-linear"
+          style={{ transform: `rotate(${displayRotation}deg)` }}
+        >
+          <svg viewBox="0 0 150 150" className="w-full h-full">
+            <path d="M75 18 L85 82 L75 70 L65 82 Z" fill="#7c6ff7" />
+          </svg>
+        </div>
+        <div className="absolute left-1/2 top-1/2 w-2 h-2 rounded-full bg-aw-text -translate-x-1/2 -translate-y-1/2 ring-4 ring-aw-bg" />
+      </div>
+      <div className="text-[12px] font-medium text-aw-text-sec">
+        {Math.abs(turnDiff) < 5 ? (
+          <span className="text-aw-teal">Facing satellite ✓</span>
+        ) : (
+          `Turn ${Math.round(Math.abs(turnDiff))}° ${turnDiff > 0 ? "right" : "left"}`
+        )}
+      </div>
+    </>
+  );
+}
+
 export default function RealtimePointer() {
   const { selectedPass, location } = useAstroStore();
   const { permission, heading, requestAccess } = useDeviceOrientation();
@@ -167,17 +225,6 @@ export default function RealtimePointer() {
     current?.elevation ?? estimate?.elevation ?? selectedPass.maxEl;
 
   const hasCompass = permission === "granted" && heading !== null;
-  // always wrapped into [0, 360) — a real change that crosses the 359°→0°
-  // seam will occasionally make the arrow spin almost a full circle
-  // instead of taking the short way; a known, separate cosmetic issue
-  // from the jitter (fixed via smoothing in useDeviceOrientation.ts), not
-  // solved here.
-  const arrowRotation = hasCompass
-    ? (liveAz - (heading as number) + 360) % 360
-    : liveAz;
-  const turnDiff = hasCompass
-    ? ((liveAz - (heading as number) + 540) % 360) - 180
-    : 0;
 
   return (
     <div className="relative w-full rounded-xl overflow-hidden border border-aw-border bg-aw-bg min-h-[250px] flex flex-col items-center justify-center gap-3 py-7 px-5 text-center">
@@ -244,27 +291,7 @@ export default function RealtimePointer() {
       {phase === "active" && permission !== "prompt-needed" && (
         <>
           {hasCompass ? (
-            <>
-              <div className="relative w-[150px] h-[150px]">
-                <div className="absolute inset-0 rounded-full border border-aw-border bg-aw-tint" />
-                <div
-                  className="absolute inset-0 transition-transform duration-150 ease-linear"
-                  style={{ transform: `rotate(${arrowRotation}deg)` }}
-                >
-                  <svg viewBox="0 0 150 150" className="w-full h-full">
-                    <path d="M75 18 L85 82 L75 70 L65 82 Z" fill="#7c6ff7" />
-                  </svg>
-                </div>
-                <div className="absolute left-1/2 top-1/2 w-2 h-2 rounded-full bg-aw-text -translate-x-1/2 -translate-y-1/2 ring-4 ring-aw-bg" />
-              </div>
-              <div className="text-[12px] font-medium text-aw-text-sec">
-                {Math.abs(turnDiff) < 5 ? (
-                  <span className="text-aw-teal">Facing satellite ✓</span>
-                ) : (
-                  `Turn ${Math.round(Math.abs(turnDiff))}° ${turnDiff > 0 ? "right" : "left"}`
-                )}
-              </div>
-            </>
+            <CompassArrow targetAz={liveAz} heading={heading as number} />
           ) : (
             <>
               <div className="text-[26px] font-semibold tabular-nums">
