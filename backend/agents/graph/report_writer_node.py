@@ -8,6 +8,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from agents.graph.state import AgentState
+from utils.format_to_client_time import format_to_client_time
 
 REPORT_WRITER_MODEL = "claude-sonnet-4-6"
 
@@ -40,6 +41,13 @@ again in a moment").
 "according to NASA...").
 - Keep the response focused and readable — a few short paragraphs, not \
 an exhaustive dump of every field.
+- If a "Currently selected pass" is given below and the user's question \
+refers to "this pass" / "the pass" / an otherwise ambiguous single pass \
+(rather than asking generally, e.g. "what's the best time this week"), \
+answer using THAT pass's own details — start time, elevation, direction, \
+duration. Do not substitute a different, better-scoring pass from the \
+general search results under "Other upcoming passes" unless the user is \
+explicitly asking for the best pass or a different time window.
 """
 
 _writer_model = ChatAnthropic(
@@ -56,21 +64,33 @@ def _format_context(state: AgentState) -> str:
     routing = state.get("routing")
     parts.append(f"\nUser's question: {routing.resolved_query if routing else ''}")
 
+    location = state.get("location")
+    tz_name = location.timezone if location else "UTC"
+
     selected_pass = state.get("selected_pass")
     if selected_pass:
+        selected_time = format_to_client_time(selected_pass.startUTC, tz_name)
         parts.append(
-            f"\nCurrently selected satellite: {selected_pass.satname} "
-            f"(NORAD {selected_pass.satid})"
+            f"\nCurrently selected pass — the exact pass shown in the user's "
+            f"UI right now:\n"
+            f"  Satellite: {selected_pass.satname} (NORAD {selected_pass.satid})\n"
+            f"  Start time: {selected_time}\n"
+            f"  Max elevation: {selected_pass.maxEl}°\n"
+            f"  Rise direction: {selected_pass.startAzCompass}\n"
+            f"  Duration: {round(selected_pass.duration / 60)} min"
         )
 
-    location = state.get("location")
     if location:
         parts.append(f"\nObserver location: {location.name}")
 
     passes_data = state.get("passes_data")
     if passes_data:
         parts.append(
-            f"\nSatellite pass data: \nBest pass: {passes_data.best_pass}\n"
+            f"\nOther upcoming passes found (may span several days — a "
+            f"different, generally-better pass than the one currently "
+            f"selected above; only use this for general questions, not "
+            f"questions about \"this pass\"):\n"
+            f"Best pass: {passes_data.best_pass}\n"
             f"Tips: {passes_data.viewing_tips}"
         )
 
