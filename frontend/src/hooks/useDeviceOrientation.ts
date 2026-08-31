@@ -20,6 +20,24 @@ interface RequestableDeviceOrientationEvent {
   requestPermission?: () => Promise<"granted" | "denied">;
 }
 
+// Raw magnetometer readings jitter by several degrees even when the phone
+// is held still, and orientation events can fire 30-60+ times/sec — pushing
+// every raw reading straight into state makes the arrow visibly flicker.
+// SMOOTHING blends each new reading toward the previous one (exponential
+// moving average) instead of snapping to it; EMIT_INTERVAL_MS caps how
+// often that smoothed value actually triggers a re-render.
+const SMOOTHING = 0.15;
+const EMIT_INTERVAL_MS = 100;
+
+// Circular-safe exponential smoothing — averaging angles directly (e.g.
+// naively averaging 359° and 1° as (359+1)/2 = 180°) is wrong because the
+// values wrap; this blends along the shortest path around the circle.
+function smoothAngle(prev: number | null, next: number): number {
+  if (prev === null) return next;
+  const delta = ((next - prev + 540) % 360) - 180; // shortest signed diff
+  return (prev + delta * SMOOTHING + 360) % 360;
+}
+
 /**
  * Live compass heading (0–360°, 0 = N, clockwise) from the device's
  * orientation sensor, with iOS's gesture-gated permission flow handled.
@@ -34,17 +52,31 @@ export function useDeviceOrientation() {
     useState<OrientationPermission>("unknown");
   const [heading, setHeading] = useState<number | null>(null);
   const attachedRef = useRef(false);
+  const smoothedHeadingRef = useRef<number | null>(null);
+  const lastEmitRef = useRef(0);
 
   const handleEvent = useCallback((event: DeviceOrientationEvent) => {
     const webkitHeading = (event as IOSDeviceOrientationEvent)
       .webkitCompassHeading;
+    let raw: number | null = null;
     if (typeof webkitHeading === "number" && !Number.isNaN(webkitHeading)) {
-      setHeading(webkitHeading);
-      return;
+      raw = webkitHeading;
+    } else if (typeof event.alpha === "number") {
+      raw = (360 - event.alpha) % 360;
     }
-    if (typeof event.alpha === "number") {
-      setHeading((360 - event.alpha) % 360);
-    }
+    if (raw === null) return;
+
+    // Smooth on every event so the filter stays accurate at native sensor
+    // rate, but only emit to React state (and trigger a render) a few
+    // times a second — plenty fluid alongside the arrow's own CSS
+    // transition, and far cheaper than re-rendering on every sensor tick.
+    const smoothed = smoothAngle(smoothedHeadingRef.current, raw);
+    smoothedHeadingRef.current = smoothed;
+
+    const now = performance.now();
+    if (now - lastEmitRef.current < EMIT_INTERVAL_MS) return;
+    lastEmitRef.current = now;
+    setHeading(smoothed);
   }, []);
 
   const attach = useCallback(() => {
