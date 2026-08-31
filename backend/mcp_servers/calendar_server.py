@@ -30,9 +30,7 @@ from mcp_servers.auth import (
 CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
 
 auth = SupabaseAPIKeyVerifier(server_name="calendar")
-mcp = FastMCP(
-    name="astrowatch-calendar", auth=auth
-)  # was: FastMCP(name="astrowatch-calendar") — no auth
+mcp = FastMCP(name="astrowatch-calendar", auth=auth)
 mcp.add_middleware(
     RateLimitMiddleware(InMemoryRateLimiter(max_calls=30, window_seconds=60))
 )
@@ -67,6 +65,26 @@ async def list_calendars(
     }
 
 
+DEDUPE_PROPERTY_NAME = "astrowatch_dedupe_key"
+
+
+async def _find_event_by_dedupe_key(
+    client, access_token, calendar_id, dedupe_key
+) -> dict | None:
+    response = await client.get(
+        f"{CALENDAR_API_BASE}/calendars/{calendar_id}/events",
+        headers={"Authorization": f"Bearer {access_token}"},
+        params={
+            "privateExtendedProperty": f"{DEDUPE_PROPERTY_NAME}={dedupe_key}",
+            "maxResults": 1,
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+    items = response.json().get("items", [])
+    return items[0] if items else None
+
+
 @mcp.tool()
 async def create_event(
     access_token: str,
@@ -76,19 +94,40 @@ async def create_event(
     start_time: str,
     end_time: str,
     reminder_minutes: int = 10,
+    dedupe_key: Annotated[
+        str | None,
+        Field(
+            description="Opaque idempotency key. If an event already carries "
+            "this key, it's returned instead of creating a duplicate."
+        ),
+    ] = None,
 ) -> dict:
-    body = {
-        "summary": summary,
-        "description": description,
-        "start": {"dateTime": start_time},
-        "end": {"dateTime": end_time},
-        "reminders": {
-            "useDefault": False,
-            "overrides": [{"method": "popup", "minutes": reminder_minutes}],
-        },
-    }
-
     async with httpx.AsyncClient() as client:
+        if dedupe_key:
+            existing = await _find_event_by_dedupe_key(
+                client, access_token, calendar_id, dedupe_key
+            )
+            if existing:
+                return {
+                    "htmlLink": existing.get("htmlLink"),
+                    "id": existing.get("id"),
+                    "status": existing.get("status"),
+                    "already_existed": True,
+                }
+
+        body = {
+            "summary": summary,
+            "description": description,
+            "start": {"dateTime": start_time},
+            "end": {"dateTime": end_time},
+            "reminders": {
+                "useDefault": False,
+                "overrides": [{"method": "popup", "minutes": reminder_minutes}],
+            },
+        }
+        if dedupe_key:
+            body["extendedProperties"] = {"private": {DEDUPE_PROPERTY_NAME: dedupe_key}}
+
         response = await client.post(
             f"{CALENDAR_API_BASE}/calendars/{calendar_id}/events",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -97,7 +136,6 @@ async def create_event(
         )
 
     if response.status_code >= 400:
-        # NEW — surface Google's actual reason instead of a generic 403
         raise RuntimeError(
             f"Google Calendar API error {response.status_code}: {response.text}"
         )
@@ -107,6 +145,7 @@ async def create_event(
         "htmlLink": event.get("htmlLink"),
         "id": event.get("id"),
         "status": event.get("status"),
+        "already_existed": False,
     }
 
 

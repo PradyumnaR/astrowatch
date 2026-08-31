@@ -20,7 +20,12 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from agents.graph.state import AgentState, CalendarData
 from rag.database import get_supabase
 from langchain_mcp_adapters.sessions import Connection, StreamableHttpConnection
-
+from app_guardrails.calendar_guardrails import (
+    calendar_write_throttle,
+    compute_dedupe_key,
+    detect_prompt_injection,
+    validate_selected_pass,
+)
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
@@ -148,6 +153,32 @@ async def calendar_node(state: AgentState) -> dict:
             )
         }
 
+    # Guardrail 1 — reject an unsafe/implausible pass before any network
+    # call is made at all. selected_pass is client-supplied (see
+    # agents/models.py's ChatRequest), never re-verified against N2YO
+    # here, so this is the only thing standing between a bad payload and
+    # a real write to the user's calendar.
+    violation = validate_selected_pass(selected_pass)
+    if violation:
+        return {
+            "calendar_data": CalendarData(
+                action="invalid", summary=violation.user_message
+            ),
+            "errors": [f"calendar_node_guardrail: {violation.code}"],
+        }
+
+    # Guardrail 2 — per-user write throttle. Checked before spending an
+    # access-token refresh + list_calendars call on a request we're going
+    # to refuse anyway.
+    if not calendar_write_throttle.allow(clerk_user_id):
+        return {
+            "calendar_data": CalendarData(
+                action="rate_limited",
+                summary="You've added several calendar events recently — "
+                "please wait a bit before adding more.",
+            )
+        }
+
     access_token = await _get_valid_access_token(clerk_user_id)
     if access_token is None:
         return {
@@ -191,10 +222,21 @@ async def calendar_node(state: AgentState) -> dict:
 
             # NEW — check if the latest message is actually answering a
             # question we already asked, before treating multiple
-            # calendars as still-ambiguous
-            matched = next(
-                (c for c in writable if c.get("summary", "") in latest_message),
-                None,
+            # calendars as still-ambiguous. Skipped when the message
+            # looks like it's trying to manipulate the assistant rather
+            # than genuinely name a calendar — substring-matching
+            # arbitrary user text against calendar names is a reasonable
+            # UX shortcut for normal replies, but not something to trust
+            # when the message looks adversarial. Falling through to the
+            # needs_confirmation branch below is always safe — worst
+            # case it just asks again.
+            matched = (
+                None
+                if detect_prompt_injection(latest_message)
+                else next(
+                    (c for c in writable if c.get("summary", "") in latest_message),
+                    None,
+                )
             )
             if matched:
                 calendar_id = matched["id"]
@@ -223,6 +265,15 @@ async def calendar_node(state: AgentState) -> dict:
                 selected_pass.endUTC, tz=timezone.utc
             ).isoformat()
 
+            # Guardrail 3 — idempotency. Computed from (user, satellite,
+            # pass start time), so repeated turns for the exact same pass
+            # (accidental double-submit, a retried request, a user just
+            # saying "add it" twice) return the existing event instead of
+            # creating a duplicate. See calendar_server.create_event.
+            dedupe_key = compute_dedupe_key(
+                clerk_user_id, selected_pass.satid, selected_pass.startUTC
+            )
+
             event_result = await session.call_tool(
                 "create_event",
                 {
@@ -233,6 +284,7 @@ async def calendar_node(state: AgentState) -> dict:
                     "start_time": start_iso,
                     "end_time": end_iso,
                     "reminder_minutes": 10,
+                    "dedupe_key": dedupe_key,
                 },
             )
 
@@ -242,12 +294,18 @@ async def calendar_node(state: AgentState) -> dict:
             if error:
                 return error
             event = event_result.structuredContent or {}
+            already_existed = bool(event.get("already_existed"))
 
             return {
                 "calendar_data": CalendarData(
                     action="created",
                     event_link=event.get("htmlLink"),
-                    summary=f"Added {selected_pass.satname} pass to calendar.",
+                    already_existed=already_existed,
+                    summary=(
+                        f"{selected_pass.satname} pass was already on the calendar."
+                        if already_existed
+                        else f"Added {selected_pass.satname} pass to calendar."
+                    ),
                 ),
                 "tools_used": ["google_calendar"],
             }

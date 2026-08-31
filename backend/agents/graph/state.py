@@ -65,7 +65,15 @@ class KnowledgeData(BaseModel):
 class CalendarData(BaseModel):
     """Structured output from the Calendar Agent."""
 
-    action: Literal["created", "needs_confirmation", "not_connected", "error"] = "error"
+    action: Literal[
+        "created",
+        "needs_confirmation",
+        "not_connected",
+        "error",
+        "invalid",
+        "rate_limited",
+    ] = "error"
+    already_existed: Optional[bool] = False
     event_link: Optional[str] = None  # Google's htmlLink, on success
     calendar_options: list[dict] = Field(
         default_factory=list
@@ -93,6 +101,12 @@ class AgentState(TypedDict):
     tools_used: Annotated[list[str], operator.add]
     sources: Annotated[list[str], operator.add]
     errors: Annotated[list[str], operator.add]
+    # NEW — guardrail interventions that *succeeded* (e.g. a routing
+    # decision got corrected). Deliberately separate from `errors`,
+    # which chat_v2.py surfaces to the user as "something went wrong" —
+    # a guardrail doing its job correctly is not a failure and shouldn't
+    # trigger that message.
+    guardrail_events: Annotated[list[str], operator.add]
 
     # ── output ───────────────────────────────────────────────────
     final_response: Optional[str]

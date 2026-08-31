@@ -2,6 +2,7 @@
 
 from agents.knowledge import search_knowledge_base
 from agents.graph.state import AgentState, KnowledgeData
+from app_guardrails.knowledge_guardrails import screen_knowledge_chunks
 
 
 def _build_sub_quires(resolved_query: str, norad_id: int | None) -> list[str]:
@@ -48,19 +49,30 @@ async def knowledge_node(state: AgentState) -> dict:
                 if content not in seen_content:
                     seen_content.add(content)
                     all_chunks.append(c)
+        # Guardrail — screen every retrieved chunk before it's allowed
+        # into state (and from there, into report_writer's context). See
+        # guardrails/knowledge_guardrails.py.
+        screen_result = screen_knowledge_chunks(all_chunks)
+        safe_chunks = screen_result.safe_chunks[:5]
+
         citations = [
             c.get("metadata", {}).get("url", "")
-            for c in all_chunks
+            for c in safe_chunks
             if c.get("metadata", {}).get("url")
         ]
 
-        return {
+        result: dict = {
             "knowledge_data": KnowledgeData(
-                chunks=all_chunks[:5], summary="", citations=citations
+                chunks=safe_chunks, summary="", citations=citations
             ),
             "tools_used": ["search_knowledge"],
             "sources": citations,
         }
+        if screen_result.dropped_count:
+            result["guardrail_events"] = [
+                f"knowledge_guardrail: {r}" for r in screen_result.reasons
+            ]
+        return result
 
     except Exception as e:
         return {"errors": [f"knowledge_node_error: {e}"], "knowledge_data": None}
