@@ -167,6 +167,11 @@ export default function RealtimePointer() {
     current?.elevation ?? estimate?.elevation ?? selectedPass.maxEl;
 
   const hasCompass = permission === "granted" && heading !== null;
+  // always wrapped into [0, 360) — a real change that crosses the 359°→0°
+  // seam will occasionally make the arrow spin almost a full circle
+  // instead of taking the short way; a known, separate cosmetic issue
+  // from the jitter (fixed via smoothing in useDeviceOrientation.ts), not
+  // solved here.
   const arrowRotation = hasCompass
     ? (liveAz - (heading as number) + 360) % 360
     : liveAz;
