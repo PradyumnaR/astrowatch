@@ -19,10 +19,13 @@ export async function DELETE(
 
     const { id } = await params;
 
+    // deletes exactly one watched pass by its own row id — distinct from
+    // /satellite/[id], which deletes every watched pass for a NORAD id
+    // (used when un-saving a satellite entirely)
     const { error } = await supabase
       .from("watched_passes")
       .delete()
-      .eq("norad_id", id)
+      .eq("id", id)
       .eq("clerk_user_id", userId);
 
     if (error) throw error;

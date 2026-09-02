@@ -32,25 +32,31 @@ export default function PassTable() {
 
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
-  // add to PassTable state
-  const [watchedKeys, setWatchedKeys] = useState<Set<string>>(new Set());
+  // maps "satid-startUTC" -> the watched-pass row's own Supabase id, so an
+  // already-watched row can be unwatched (deleted by that id) later
+  const [watchedPasses, setWatchedPasses] = useState<Map<string, string>>(
+    new Map(),
+  );
   const [watchingId, setWatchingId] = useState<string | null>(null);
 
   const timeZone = useMemo(() => location?.timezone, [location?.timezone]);
 
   // add state
   const [showUpgrade, setShowUpgrade] = useState(false);
-  const atPassLimit = isAtPassLimit(userPlan ?? "standard", watchedKeys.size);
+  const atPassLimit = isAtPassLimit(userPlan ?? "standard", watchedPasses.size);
 
   useEffect(() => {
     async function fetchWatched() {
       try {
         const res = await fetch("/api/watched-passes");
         const data = await res.json();
-        const keys = new Set<string>(
-          data.map((p: any) => `${p.passData.satid}-${p.passData.startUTC}`),
+        const map = new Map<string, string>(
+          data.map((p: any) => [
+            `${p.passData.satid}-${p.passData.startUTC}`,
+            p.id,
+          ]),
         );
-        setWatchedKeys(keys);
+        setWatchedPasses(map);
       } catch (err) {
         console.log("Failed to fetch watching passes", err);
       }
@@ -61,7 +67,7 @@ export default function PassTable() {
 
   async function handleWatch(pass: SatellitePass) {
     const key = `${pass.satid}-${pass.startUTC}`;
-    if (watchedKeys.has(key)) return;
+    if (watchedPasses.has(key)) return;
 
     // check limit before calling API
     if (atPassLimit) {
@@ -91,9 +97,35 @@ export default function PassTable() {
 
       if (!res.ok) throw new Error("Watch failed");
 
-      setWatchedKeys((prev) => new Set([...prev, key]));
+      const data = await res.json();
+      setWatchedPasses((prev) => new Map(prev).set(key, data.id));
     } catch (err) {
       console.error("Watch failed:", err);
+    } finally {
+      setWatchingId(null);
+    }
+  }
+
+  async function handleUnwatch(pass: SatellitePass) {
+    const key = `${pass.satid}-${pass.startUTC}`;
+    const rowId = watchedPasses.get(key);
+    if (!rowId) return;
+
+    setWatchingId(key);
+
+    try {
+      const res = await fetch(`/api/watched-passes/${rowId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Unwatch failed");
+
+      setWatchedPasses((prev) => {
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
+    } catch (err) {
+      console.error("Unwatch failed:", err);
     } finally {
       setWatchingId(null);
     }
@@ -321,25 +353,28 @@ export default function PassTable() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    {/* watch button */}
+                    {/* watch / unwatch button */}
                     {(() => {
                       const key = `${pass.satid}-${pass.startUTC}`;
-                      const watched = watchedKeys.has(key);
+                      const watched = watchedPasses.has(key);
                       const loading = watchingId === key;
                       const locked = atPassLimit && !watched;
 
                       return (
                         <button
-                          onClick={() =>
-                            locked ? setShowUpgrade(true) : handleWatch(pass)
-                          }
-                          disabled={watched || !!loading}
-                          className={`cursor-pointer flex items-center gap-1.5
+                          onClick={() => {
+                            if (loading) return;
+                            if (watched) return handleUnwatch(pass);
+                            if (locked) return setShowUpgrade(true);
+                            return handleWatch(pass);
+                          }}
+                          disabled={loading}
+                          className={`group cursor-pointer flex items-center gap-1.5
                             text-[10px] border rounded-full
                             px-2.5 py-1 transition-colors
                             ${
                               watched
-                                ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 cursor-default"
+                                ? "border-aw-teal/30 text-aw-teal bg-aw-teal/8 hover:border-red-400/40 hover:text-red-400 hover:bg-red-400/8"
                                 : loading
                                   ? "border-aw-border text-aw-text-muted cursor-wait"
                                   : locked
@@ -347,13 +382,26 @@ export default function PassTable() {
                                     : "border-aw-border text-aw-text-muted hover:text-aw-teal hover:border-aw-teal/40"
                             }`}
                         >
-                          {watched
-                            ? "★ Watching"
-                            : loading
-                              ? "..."
-                              : locked
-                                ? "🔒"
-                                : "☆ Watch"}
+                          {watched ? (
+                            loading ? (
+                              "..."
+                            ) : (
+                              <>
+                                <span className="group-hover:hidden">
+                                  ★ Watching
+                                </span>
+                                <span className="hidden group-hover:inline">
+                                  ✕ Unwatch
+                                </span>
+                              </>
+                            )
+                          ) : loading ? (
+                            "..."
+                          ) : locked ? (
+                            "🔒"
+                          ) : (
+                            "☆ Watch"
+                          )}
                         </button>
                       );
                     })()}

@@ -9,28 +9,41 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!,
 );
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // scope=past → Pass History tab (completed passes only, most recent
+    // first). Default (no param) → the existing upcoming-passes behavior,
+    // unchanged, used by PassesTable's ★-badge lookup and the Sky Planner
+    // "My passes" tab.
+    const { searchParams } = new URL(req.url);
+    const scope = searchParams.get("scope");
+
     const { data, error } = await supabase
       .from("watched_passes")
       .select("*")
       .eq("clerk_user_id", userId)
-      .order("start_utc", { ascending: true });
+      .order("start_utc", { ascending: scope !== "past" });
 
     if (error) throw error;
 
-    //auto filter out past passes which are more than 1 hour old
-    const now = Math.floor(Date.now() / 1000) + 3600;
-    // 1 hour from now (to avoid showing past passes which are more than 1 hour old)
-    const future = data.filter((p) => p.start_utc > now);
+    const nowSec = Math.floor(Date.now() / 1000);
+    // A pass isn't complete just because it started — only once it ends.
+    // endUTC lives inside pass_data (no top-level end_utc column); fall
+    // back to start_utc only if that's ever missing/malformed.
+    const endOf = (p: (typeof data)[number]) =>
+      p.pass_data?.endUTC ?? p.start_utc;
+    const filtered =
+      scope === "past"
+        ? data.filter((p) => endOf(p) <= nowSec)
+        : data.filter((p) => endOf(p) > nowSec);
 
     // map snake_case → camelCase
-    const passes = future.map((row) => ({
+    const passes = filtered.map((row) => ({
       id: row.id,
       noradId: row.norad_id,
       satname: row.sat_name,

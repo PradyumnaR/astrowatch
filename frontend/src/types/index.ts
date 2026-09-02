@@ -69,6 +69,15 @@ export interface SavedSatellite {
   savedAt: string; //ISO timestamp
 }
 
+export interface WatchedPass {
+  id: string; //Supabase row UUID — needed to delete/unwatch this specific pass
+  noradId: number;
+  satname: string;
+  startUTC: number;
+  passData: SatellitePass; //full enriched pass snapshot as of when it was watched
+  savedAt: string; //ISO timestamp
+}
+
 export interface CelestrakSatellite {
   noradId: number;
   satname: string;

@@ -4,7 +4,7 @@ import { useAstroStore } from "@/stores/astrowatch";
 import SidebarTabs from "./_components/SidebarTabs";
 import { useEffect } from "react";
 import { SavedSatellite } from "@/types";
-import PassTable from "./_components/PassesTable";
+import PassesPanelTabs from "./_components/PassesPanelTabs";
 import WeeklyHighlights from "./_components/WeeklyHighlights";
 
 export default function MySatellitesPage({}) {
@@ -36,7 +36,7 @@ export default function MySatellitesPage({}) {
       </aside>
       {/* main */}
       <main className="overflow-y-auto p-4 min-w-[300px]">
-        <PassTable />
+        <PassesPanelTabs />
       </main>
 
       {/* right sidebar */}
