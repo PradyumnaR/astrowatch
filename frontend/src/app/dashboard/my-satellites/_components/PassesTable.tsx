@@ -109,11 +109,11 @@ export default function PassTable() {
   }
 
   // filter out past passes
-  const now = Math.floor(Date.now() / 1000);
-  const futurePasses = savedPasses.filter((p) => p.startUTC > now);
+  //const now = Math.floor(Date.now() / 1000);
+  //const futurePasses = savedPasses.filter((p) => p.startUTC > now);
 
   // sort
-  const sorted = [...futurePasses].sort((a, b) => {
+  const sorted = [...savedPasses].sort((a, b) => {
     let diff = 0;
     switch (sortKey) {
       case "date":
@@ -131,28 +131,6 @@ export default function PassTable() {
     }
     return sortDir === "asc" ? diff : -diff;
   });
-
-  function handleEmail(pass: (typeof sorted)[0]) {
-    if (!location) return;
-    const time = formatPassTime(pass.startUTC, timeZone || "");
-    const subject = encodeURIComponent(
-      `AstroWatch — ${pass.satname} pass ${time}`,
-    );
-    const body = encodeURIComponent(
-      `Don't miss this satellite pass!\n\n` +
-        `Satellite  : ${pass.satname}\n` +
-        `Time       : ${time}\n` +
-        `Direction  : ${pass.startAzCompass} → ${azToCompass(pass.endAz)}\n` +
-        `Max elev.  : ${pass.maxEl}°\n` +
-        `Duration   : ${Math.round(pass.duration / 60)} min\n` +
-        `Score      : ${pass.viewingScore?.toFixed(1) ?? "—"} / 10\n` +
-        `Cloud cover: ${pass.cloudCover ?? "—"}%\n` +
-        `Temperature: ${pass.temperature ? Math.round(pass.temperature) : "—"}°F\n` +
-        `Moon       : ${pass.moonPhase ?? "—"}\n\n` +
-        `— AstroWatch`,
-    );
-    window.open(`mailto:?subject=${subject}&body=${body}`);
-  }
 
   // ── empty states ──────────────────────────────────
 

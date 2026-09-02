@@ -16,21 +16,6 @@ const DEFAULT_DAYS = 1;
 
 type Tabs = "default" | "my-passes";
 
-function findHourIndex(times: string[], utcSecs: number): number {
-  const passDate = new Date(Number(utcSecs) * 1000);
-  const passDay = passDate.getDate();
-  const passHour = passDate.getHours();
-
-  console.log(passDate);
-
-  const hourIndex = times.findIndex((t) => {
-    const d = new Date(t);
-    return d.getDate() === passDay && d.getHours() === passHour;
-  });
-
-  return hourIndex >= 0 ? hourIndex : 0;
-}
-
 export default function PassList() {
   const {
     location,

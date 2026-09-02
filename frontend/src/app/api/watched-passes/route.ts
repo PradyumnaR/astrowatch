@@ -24,7 +24,9 @@ export async function GET() {
 
     if (error) throw error;
 
-    const now = Math.floor(Date.now() / 1000);
+    //auto filter out past passes which are more than 1 hour old
+    const now = Math.floor(Date.now() / 1000) + 3600;
+    // 1 hour from now (to avoid showing past passes which are more than 1 hour old)
     const future = data.filter((p) => p.start_utc > now);
 
     // map snake_case → camelCase
