@@ -34,7 +34,7 @@ export default function SidebarTabs() {
                 : "text-aw-text-muted hover:text-aw-text-sec"
             }`}
         >
-          My satellites
+          Satellites watchlist
         </button>
       </div>
       {/* tab content */}
