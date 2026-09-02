@@ -9,7 +9,7 @@ import { useTheme } from "@/hooks/useTheme";
 
 const NAV_LINKS = [
   { href: "/dashboard/sky-planner", label: "Sky planner" },
-  { href: "/dashboard/my-satellites", label: "My Satellites" },
+  { href: "/dashboard/my-satellites", label: "Satellites" },
   { href: "/dashboard/developer", label: "Developer" },
   { href: "/dashboard/settings", label: "Settings" },
   // { href: "/dashboard/explore", label: "Explore" },

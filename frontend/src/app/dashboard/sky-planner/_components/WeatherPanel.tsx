@@ -69,6 +69,12 @@ export default function WeatherPanel() {
             label="Satellite birghtness"
             value={`${mag}`}
           />
+
+          <ConditionRow
+            icon="↗️"
+            label="Max elevation"
+            value={`${selectedPass?.maxEl}`}
+          />
         </div>
       </section>
       {selectedPass && (

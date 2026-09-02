@@ -190,7 +190,7 @@ export default function PassList() {
               : "text-aw-text-muted hover:text-aw-text-sec"
           }`}
         >
-          My passes
+          Passes watchlist
         </button>
       </div>
 
