@@ -32,13 +32,15 @@ export async function GET(req: Request) {
     if (error) throw error;
 
     const nowSec = Math.floor(Date.now() / 1000);
+    // A pass isn't complete just because it started — only once it ends.
+    // endUTC lives inside pass_data (no top-level end_utc column); fall
+    // back to start_utc only if that's ever missing/malformed.
+    const endOf = (p: (typeof data)[number]) =>
+      p.pass_data?.endUTC ?? p.start_utc;
     const filtered =
       scope === "past"
-        ? data.filter((p) => p.start_utc <= nowSec)
-        : // auto filter out past passes which are more than 1 hour old —
-          // 1 hour from now, to avoid showing passes about to start/that
-          // just started as still "upcoming"
-          data.filter((p) => p.start_utc > nowSec + 3600);
+        ? data.filter((p) => endOf(p) <= nowSec)
+        : data.filter((p) => endOf(p) > nowSec);
 
     // map snake_case → camelCase
     const passes = filtered.map((row) => ({
