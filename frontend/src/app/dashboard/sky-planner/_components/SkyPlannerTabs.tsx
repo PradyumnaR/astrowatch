@@ -34,7 +34,7 @@ export default function SkyPlannerTabs() {
                 : "text-aw-text-muted hover:text-aw-text-sec"
             }`}
         >
-          Point to Satellite
+          Live Tracking
         </button>
       </div>
       {activeTab === "sky-map" ? <SkyCanvas /> : <SatelliteMapCompass />}

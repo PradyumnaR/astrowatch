@@ -83,7 +83,8 @@ def _format_context(state: AgentState) -> str:
             f"  Start time: {selected_time}\n"
             f"  Max elevation: {selected_pass.maxEl}°\n"
             f"  Rise direction: {selected_pass.startAzCompass}\n"
-            f"  Duration: {round(selected_pass.duration / 60)} min"
+            f"  Duration: {round(selected_pass.duration / 60)} min\n"
+            f"  Max elevation time: {format_to_client_time(selected_pass.maxUTC, tz_name)}°\n"
         )
 
     if location:
