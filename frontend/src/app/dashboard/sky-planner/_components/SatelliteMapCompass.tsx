@@ -8,7 +8,7 @@ import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
 import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
 import { azToCompass } from "@/lib/compass";
 import CompassArrow from "./CompassArrow";
-import type { Location, SatellitePosition } from "@/types";
+import type { Location, SatellitePass, SatellitePosition } from "@/types";
 
 // Free, no-API-key vector basemap — see https://openfreemap.org.
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -21,22 +21,63 @@ function formatCountdown(totalSeconds: number): string {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
 }
 
+function closestByTimestamp(
+  positions: SatellitePosition[],
+  target: number,
+): SatellitePosition | undefined {
+  return positions.reduce<SatellitePosition | undefined>((closest, p) => {
+    if (!closest) return p;
+    return Math.abs(p.timestamp - target) < Math.abs(closest.timestamp - target)
+      ? p
+      : closest;
+  }, undefined);
+}
+
+// Creates a small marker the first time it's called for a given ref, then
+// just repositions it on every subsequent call — avoids piling up duplicate
+// DOM markers as this runs on every position update.
+function upsertPointMarker(
+  ref: { current: maplibregl.Marker | null },
+  map: maplibregl.Map,
+  position: SatellitePosition,
+  label: string,
+  dotClassName: string,
+) {
+  const lngLat: [number, number] = [position.satlongitude, position.satlatitude];
+  if (ref.current) {
+    ref.current.setLngLat(lngLat);
+    return;
+  }
+  const el = document.createElement("div");
+  el.className = dotClassName;
+  ref.current = new maplibregl.Marker({ element: el })
+    .setLngLat(lngLat)
+    .setPopup(new maplibregl.Popup({ closeButton: false }).setText(label))
+    .addTo(map);
+}
+
 // Ground-track map for the active pass: observer marker, live satellite
-// marker, and the path accumulated so far. Only mounted while a pass is
-// active, so the (relatively expensive) map init/teardown is tied to this
-// component's own mount/unmount rather than running on every render.
+// marker, and the full rise → max elevation → set trajectory (not just the
+// trail behind the satellite). Only mounted while a pass is active, so the
+// (relatively expensive) map init/teardown is tied to this component's own
+// mount/unmount rather than running on every render.
 function LiveMap({
   location,
+  selectedPass,
   positions,
   current,
 }: {
   location: Location;
+  selectedPass: SatellitePass;
   positions: SatellitePosition[] | null;
   current: SatellitePosition | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const satMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const riseMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const setMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const peakMarkerRef = useRef<maplibregl.Marker | null>(null);
   const hasFitRef = useRef(false);
 
   // Create the map once on mount, tear it down on unmount. `location` is
@@ -91,13 +132,16 @@ function LiveMap({
       map.remove();
       mapRef.current = null;
       satMarkerRef.current = null;
+      riseMarkerRef.current = null;
+      setMarkerRef.current = null;
+      peakMarkerRef.current = null;
       hasFitRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Move the satellite marker + extend the ground-track line as new
-  // positions arrive, imperatively — never recreates the map or marker.
+  // Move the satellite marker + (re)draw the full rise → set trajectory as
+  // new positions arrive, imperatively — never recreates the map or marker.
   useEffect(() => {
     const map = mapRef.current;
     const marker = satMarkerRef.current;
@@ -105,32 +149,74 @@ function LiveMap({
 
     marker.setLngLat([current.satlongitude, current.satlatitude]);
 
+    // Trim to the pass's actual visible window — the fetched batch can
+    // include some samples just before rise or after set (N2YO's positions
+    // endpoint returns a fixed window from "now", not clipped to the pass),
+    // which are real orbit points but not part of "rise to fall".
+    const visible = (positions ?? []).filter(
+      (p) =>
+        p.timestamp >= selectedPass.startUTC &&
+        p.timestamp <= selectedPass.endUTC,
+    );
+
     const source = map.getSource("ground-track") as
       | maplibregl.GeoJSONSource
       | undefined;
-    if (source) {
-      const track = (positions ?? [])
-        .filter((p) => p.timestamp <= current.timestamp)
-        .map((p) => [p.satlongitude, p.satlatitude]);
+    if (source && visible.length) {
       source.setData({
         type: "Feature",
         properties: {},
-        geometry: { type: "LineString", coordinates: track },
+        geometry: {
+          type: "LineString",
+          coordinates: visible.map((p) => [p.satlongitude, p.satlatitude]),
+        },
       });
     }
 
-    // Fit the view to observer + satellite once, the first time we have a
-    // live fix — after that, leave the user's pan/zoom alone.
+    if (visible.length) {
+      upsertPointMarker(
+        riseMarkerRef,
+        map,
+        visible[0],
+        "Rise",
+        "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-teal",
+      );
+      upsertPointMarker(
+        setMarkerRef,
+        map,
+        visible[visible.length - 1],
+        "Set",
+        "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-amber",
+      );
+      const peak = closestByTimestamp(visible, selectedPass.maxUTC);
+      if (peak) {
+        upsertPointMarker(
+          peakMarkerRef,
+          map,
+          peak,
+          "Max elevation",
+          "w-3 h-3 rounded-full bg-aw-purple border-2 border-white shadow-md",
+        );
+      }
+    }
+
+    // Fit the view to the whole visible trajectory (or just observer +
+    // satellite if positions haven't loaded yet) once, the first time we
+    // have a live fix — after that, leave the user's pan/zoom alone.
     if (!hasFitRef.current && map.isStyleLoaded()) {
       hasFitRef.current = true;
       const bounds = new maplibregl.LngLatBounds(
         [location.lng, location.lat],
         [location.lng, location.lat],
       );
-      bounds.extend([current.satlongitude, current.satlatitude]);
+      if (visible.length) {
+        visible.forEach((p) => bounds.extend([p.satlongitude, p.satlatitude]));
+      } else {
+        bounds.extend([current.satlongitude, current.satlatitude]);
+      }
       map.fitBounds(bounds, { padding: 60, maxZoom: 11, duration: 0 });
     }
-  }, [current, positions, location]);
+  }, [current, positions, location, selectedPass]);
 
   return (
     <div
@@ -218,7 +304,12 @@ export default function SatelliteMapCompass() {
   return (
     <div className="relative w-full h-[340px] rounded-xl overflow-hidden border border-aw-border bg-aw-bg">
       {location ? (
-        <LiveMap location={location} positions={positions} current={current} />
+        <LiveMap
+          location={location}
+          selectedPass={selectedPass}
+          positions={positions}
+          current={current}
+        />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center">
           <p className="text-aw-text-muted text-xs">

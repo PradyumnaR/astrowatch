@@ -4,7 +4,11 @@ import SatelliteMapCompass from "@/app/dashboard/sky-planner/_components/Satelli
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
 import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
-import type { Location, SatellitePass } from "@/types";
+import type { Location, SatellitePass, SatellitePosition } from "@/types";
+
+// Exposed so tests can assert what coordinates the ground-track source was
+// last given, without reaching into the (mocked) maplibre-gl internals.
+const groundTrackSource = { setData: vi.fn() };
 
 // MapLibre needs a real WebGL canvas that jsdom can't provide. It's only
 // ever exercised once phase === "active" (LiveMap mounts), but these
@@ -15,7 +19,7 @@ vi.mock("maplibre-gl", () => {
     on = vi.fn();
     addSource = vi.fn();
     addLayer = vi.fn();
-    getSource = vi.fn();
+    getSource = vi.fn(() => groundTrackSource);
     remove = vi.fn();
     isStyleLoaded = vi.fn(() => false);
     fitBounds = vi.fn();
@@ -89,6 +93,7 @@ beforeEach(() => {
     heading: null,
     requestAccess: vi.fn(),
   });
+  groundTrackSource.setData.mockClear();
 });
 
 describe("SatelliteMapCompass", () => {
@@ -130,6 +135,38 @@ describe("SatelliteMapCompass", () => {
     expect(
       screen.getByRole("button", { name: /enable compass/i }),
     ).toBeInTheDocument();
+  });
+
+  it("draws the full rise-to-set trajectory, not just the elapsed trail", () => {
+    // One sample before rise, one after set — both real orbit points N2YO
+    // can include in the batch, but outside what "rise to fall" means here
+    // — plus the visible arc itself. `current` sits partway through, so a
+    // trail-only filter would wrongly stop the line there.
+    const positions: SatellitePosition[] = [
+      { azimuth: 190, elevation: -2, satlatitude: 10, satlongitude: 10, sataltitude: 400, timestamp: pass.startUTC - 10 },
+      { azimuth: 200, elevation: 10, satlatitude: 20, satlongitude: 20, sataltitude: 400, timestamp: pass.startUTC },
+      { azimuth: 270, elevation: 60, satlatitude: 30, satlongitude: 30, sataltitude: 400, timestamp: pass.maxUTC },
+      { azimuth: 10, elevation: 10, satlatitude: 40, satlongitude: 40, sataltitude: 400, timestamp: pass.endUTC },
+      { azimuth: 5, elevation: -3, satlatitude: 50, satlongitude: 50, sataltitude: 400, timestamp: pass.endUTC + 10 },
+    ];
+    const current = positions[1]; // partway through the visible arc
+
+    mockTracking({ phase: "active", positions, current });
+
+    render(<SatelliteMapCompass />);
+
+    expect(groundTrackSource.setData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [20, 20],
+            [30, 30],
+            [40, 40],
+          ],
+        },
+      }),
+    );
   });
 
   it("falls back to numeric az/el when compass permission is denied", () => {
