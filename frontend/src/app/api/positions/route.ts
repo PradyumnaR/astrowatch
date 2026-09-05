@@ -35,6 +35,20 @@ export async function GET(req: Request) {
     const res = await fetch(url, { cache: "no-store" });
     const data = await res.json();
 
+    // N2YO returns HTTP 200 with an `error` field on failures like an
+    // exceeded quota or invalid key — surface that distinctly rather than
+    // a silent empty positions array.
+    if (!res.ok || data?.error) {
+      console.error(
+        "N2YO positions error:",
+        data?.error ?? `HTTP ${res.status}`,
+      );
+      return NextResponse.json(
+        { error: data?.error ?? "Unable to fetch positions from N2YO.", positions: [] },
+        { status: 502 },
+      );
+    }
+
     return NextResponse.json({
       satid: data.info?.satid ?? Number(id),
       satname: data.info?.satname,
