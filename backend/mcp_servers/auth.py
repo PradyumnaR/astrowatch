@@ -15,7 +15,6 @@ import os
 import time
 from collections import defaultdict, deque
 
-from dotenv import load_dotenv
 from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import AccessToken, AuthProvider
 from fastmcp.server.dependencies import get_access_token

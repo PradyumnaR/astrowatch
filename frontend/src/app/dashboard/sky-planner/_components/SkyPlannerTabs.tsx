@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import SkyCanvas from "./SkyCanvas-v2";
-import RealtimePointer from "./RealtimePointer";
+import SatelliteMapCompass from "./SatelliteMapCompass";
 
 type Tab = "sky-map" | "pointer";
 
@@ -34,10 +34,10 @@ export default function SkyPlannerTabs() {
                 : "text-aw-text-muted hover:text-aw-text-sec"
             }`}
         >
-          Point to Satellite
+          Live Tracking
         </button>
       </div>
-      {activeTab === "sky-map" ? <SkyCanvas /> : <RealtimePointer />}
+      {activeTab === "sky-map" ? <SkyCanvas /> : <SatelliteMapCompass />}
     </div>
   );
 }
