@@ -135,7 +135,7 @@ function LiveMap({
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0"
+      className="absolute inset-0 h-full w-full"
       role="img"
       aria-label="Map of your location and the satellite's live ground track"
     />
