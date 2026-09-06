@@ -39,10 +39,18 @@ export function estimatePosition(pass: SatellitePass, nowSec: number) {
  * pre-window) through active. Behavior-preserving extraction of the logic
  * that used to live inline in RealtimePointer.tsx, so it can be shared by
  * both the compass overlay and the map.
+ *
+ * `mockPositions` is an escape hatch for previewing the UI with synthetic
+ * data (see SatelliteMapCompass's "Preview map" button): when passed
+ * (even as `null`, not just omitted), the `/api/positions` fetch is skipped
+ * entirely and `mockPositions` is used wherever live-fetched positions
+ * normally would be. Every real call site omits it, so this is purely
+ * additive — omitted behavior is unchanged.
  */
 export function useLiveSatelliteTracking(
   selectedPass: SatellitePass | null,
   location: Location | null,
+  mockPositions?: SatellitePosition[] | null,
 ) {
   const [positions, setPositions] = useState<SatellitePosition[] | null>(
     null,
@@ -90,6 +98,7 @@ export function useLiveSatelliteTracking(
   // codebase) rather than a component-level function invoked
   // fire-and-forget from the effect.
   useEffect(() => {
+    if (mockPositions !== undefined) return; // preview mode — never fetch
     if (!selectedPass || !location) return;
     if (phase === "ended" || phase === "no-pass") return;
     if (isFetchingRef.current) return;
@@ -130,17 +139,19 @@ export function useLiveSatelliteTracking(
     }
 
     fetchPositions();
-  }, [nowSec, selectedPass, location, positions, phase]);
+  }, [nowSec, selectedPass, location, positions, phase, mockPositions]);
+
+  const effectivePositions = mockPositions !== undefined ? mockPositions : positions;
 
   const current = useMemo(() => {
-    if (!positions?.length) return null;
-    const windowStart = positions[0].timestamp;
+    if (!effectivePositions?.length) return null;
+    const windowStart = effectivePositions[0].timestamp;
     const idx = Math.min(
       Math.max(nowSec - windowStart, 0),
-      positions.length - 1,
+      effectivePositions.length - 1,
     );
-    return positions[idx];
-  }, [positions, nowSec]);
+    return effectivePositions[idx];
+  }, [effectivePositions, nowSec]);
 
   const isEstimating = phase === "active" && !current;
   const estimate =
@@ -155,7 +166,7 @@ export function useLiveSatelliteTracking(
   return {
     phase,
     nowSec,
-    positions,
+    positions: effectivePositions,
     current,
     estimate,
     liveAz,

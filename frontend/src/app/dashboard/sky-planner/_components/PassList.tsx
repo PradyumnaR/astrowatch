@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useAstroStore } from "@/stores/astrowatch";
 import { getWeatherAtHour } from "@/lib/getWeatherAtHour";
-import { azToCompass } from "@/lib/compass";
 import PassItem from "./PassItem";
 import type { SatellitePass } from "@/types";
 
@@ -16,33 +15,6 @@ const DEFAULT_SATS = [
 const DEFAULT_DAYS = 1;
 
 type Tabs = "default" | "my-passes";
-
-// Builds a pass window that reads as "active" right now, for the real ISS.
-// Used only by the dev/testing "Simulate active pass" button below — lets
-// the map + compass in SatelliteMapCompass be exercised (against genuine
-// live /api/positions data) without waiting for an actual visible pass.
-function buildSimulatedPass(): SatellitePass {
-  const now = Math.floor(Date.now() / 1000);
-  const startUTC = now - 10;
-  const maxUTC = now + 90;
-  const endUTC = now + 180;
-  const startAz = 200;
-  return {
-    satid: 25544,
-    satname: "ISS (ZARYA)",
-    startAz,
-    startAzCompass: azToCompass(startAz),
-    startEl: 10,
-    startUTC,
-    maxAz: 270,
-    maxEl: 60,
-    maxUTC,
-    endAz: 10,
-    endUTC,
-    mag: -3.0,
-    duration: endUTC - startUTC,
-  };
-}
 
 export default function PassList() {
   const {
@@ -60,22 +32,7 @@ export default function PassList() {
   const [activeTab, setActiveTab] = useState<Tabs>("default");
   const [watchedPasses, setWatchedPasses] = useState<SatellitePass[]>([]);
   const [isLoadingWatched, setIsLoadingWatched] = useState(false);
-  const [showSimulate, setShowSimulate] = useState(false);
-
-  // Reveal the "Simulate active pass" testing button locally (always) and on
-  // any deployed URL when opted into via ?simulate — including the PR's
-  // Vercel preview, which otherwise builds with NODE_ENV=production like any
-  // deploy. Deliberately deferred to a post-mount effect (same pattern as
-  // useTheme.ts/useDeviceOrientation.ts elsewhere in this codebase) rather
-  // than read during render, since `window` isn't available during SSR and
-  // reading it at render time would produce a server/client markup mismatch.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setShowSimulate(
-      process.env.NODE_ENV !== "production" ||
-        new URLSearchParams(window.location.search).has("simulate"),
-    );
-  }, []);
+  const [passesError, setPassesError] = useState<string | null>(null);
 
   // fetch watched passes when tab is activated
   useEffect(() => {
@@ -111,15 +68,35 @@ export default function PassList() {
     async function fetchPassesAndWeather() {
       try {
         setLoadingPasses(true);
+        setPassesError(null);
         const passResults = await Promise.all(
-          DEFAULT_SATS.map((sat) =>
-            fetch(
+          DEFAULT_SATS.map(async (sat) => {
+            const res = await fetch(
               `/api/passes?id=${sat.id}&lat=${location?.lat}&lng=${location!.lng}&days=${DEFAULT_DAYS}`,
-            ).then((r) => r.json()),
-          ),
+            );
+            const body = await res.json();
+            if (!res.ok) {
+              // Route already logs the upstream cause server-side (e.g. an
+              // N2YO quota/error response) — surface just enough here to
+              // tell "N2YO is erroring" apart from "no passes tonight".
+              console.error(
+                `Failed to fetch passes for ${sat.name}:`,
+                body?.error ?? `HTTP ${res.status}`,
+              );
+              return { sat, passes: [] as SatellitePass[], failed: true };
+            }
+            return { sat, passes: body as SatellitePass[], failed: false };
+          }),
         );
+        if (passResults.some((r) => r.failed)) {
+          setPassesError(
+            "Couldn't load some pass data — the satellite tracking API may be temporarily unavailable. Try again shortly.",
+          );
+        }
         // flatten, add viewingScore, sort best first
-        const rawPasses: SatellitePass[] = passResults.flat();
+        const rawPasses: SatellitePass[] = passResults.flatMap(
+          (r) => r.passes,
+        );
         const hourly = weatherOm?.hourly;
 
         if (
@@ -182,6 +159,9 @@ export default function PassList() {
         }
       } catch (err) {
         console.error("Unable to fetch passes and weather data", err);
+        setPassesError(
+          "Couldn't load pass data right now. Try again shortly.",
+        );
       } finally {
         setLoadingPasses(false);
       }
@@ -238,18 +218,6 @@ export default function PassList() {
         </button>
       </div>
 
-      {showSimulate && (
-        <button
-          onClick={() => handlePassClick(buildSimulatedPass())}
-          className="cursor-pointer w-full mt-2 py-1 rounded-md text-[10px]
-          text-aw-text-muted hover:text-aw-purple border border-dashed
-          border-aw-border hover:border-aw-purple/45 transition-colors"
-          title="Selects the real ISS with a pass window that reads as active right now, for testing the live map + compass."
-        >
-          🧪 Simulate active ISS pass (testing)
-        </button>
-      )}
-
       {activeTab == "default" && (
         <div className="pt-2">
           {" "}
@@ -269,9 +237,14 @@ export default function PassList() {
                   onClick={() => handlePassClick(pass)}
                 />
               ))}
-              {passes.length === 0 && (
+              {passes.length === 0 && !passesError && (
                 <p className="text-aw-text-muted text-xs pt-2">
                   No visible passes tonight
+                </p>
+              )}
+              {passesError && (
+                <p className="text-aw-amber text-[11px] pt-2">
+                  {passesError}
                 </p>
               )}
             </div>

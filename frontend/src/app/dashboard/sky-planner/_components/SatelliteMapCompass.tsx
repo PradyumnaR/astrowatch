@@ -1,17 +1,32 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
-import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
+import {
+  estimatePosition,
+  useLiveSatelliteTracking,
+} from "@/hooks/useLiveSatelliteTracking";
 import { azToCompass } from "@/lib/compass";
 import CompassArrow from "./CompassArrow";
-import type { Location, SatellitePosition } from "@/types";
+import type { Location, SatellitePass, SatellitePosition } from "@/types";
 
 // Free, no-API-key vector basemap — see https://openfreemap.org.
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+
+// Self-host MapLibre's worker script instead of relying on its own
+// `new Worker(new URL("./maplibre-gl-worker.mjs", import.meta.url))`
+// resolution — that pattern needs bundler-level support to rewrite the URL
+// correctly, and in production here it instead resolved to a URL that
+// doesn't exist, so the browser got an HTML 404 back for what it expected
+// to be a JS module and refused to run it, leaving the map silently blank.
+// The file this points at is copied from node_modules by
+// scripts/copy-maplibre-worker.mjs (via the postinstall/build scripts).
+// Set once at module scope, before any Map (and its worker pool) is ever
+// created.
+maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 
 function formatCountdown(totalSeconds: number): string {
   const s = Math.max(0, Math.round(totalSeconds));
@@ -21,23 +36,119 @@ function formatCountdown(totalSeconds: number): string {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
 }
 
+function closestByTimestamp(
+  positions: SatellitePosition[],
+  target: number,
+): SatellitePosition | undefined {
+  return positions.reduce<SatellitePosition | undefined>((closest, p) => {
+    if (!closest) return p;
+    return Math.abs(p.timestamp - target) < Math.abs(closest.timestamp - target)
+      ? p
+      : closest;
+  }, undefined);
+}
+
+// Fabricates a short "active right now" pass + a matching synthetic
+// position track, entirely client-side — used only by the "Preview map"
+// button so the map/compass/trajectory can be exercised on demand without
+// any real pass and, crucially, without a single call to /api/positions
+// (unlike the old real-data "simulate" button this replaces).
+function buildPreviewScenario(location: Location): {
+  pass: SatellitePass;
+  positions: SatellitePosition[];
+} {
+  const now = Math.floor(Date.now() / 1000);
+  const startUTC = now - 5;
+  const maxUTC = now + 55;
+  const endUTC = now + 115;
+  const startAz = 200;
+  const maxAz = 270;
+  const endAz = 10;
+
+  const pass: SatellitePass = {
+    satid: 0,
+    satname: "Preview Satellite",
+    startAz,
+    startAzCompass: azToCompass(startAz),
+    startEl: 10,
+    startUTC,
+    maxAz,
+    maxEl: 60,
+    maxUTC,
+    endAz,
+    endUTC,
+    mag: -2,
+    duration: endUTC - startUTC,
+  };
+
+  const positions: SatellitePosition[] = [];
+  for (let t = startUTC; t <= endUTC; t++) {
+    const frac = (t - startUTC) / (endUTC - startUTC);
+    positions.push({
+      ...estimatePosition(pass, t),
+      // sweeps a few degrees across the observer's location — not real
+      // orbital geometry, just enough to see the map, marker, and
+      // trajectory line move.
+      satlatitude: location.lat + (frac - 0.5) * 4,
+      satlongitude: location.lng + (frac - 0.5) * 6,
+      sataltitude: 400,
+      timestamp: t,
+    });
+  }
+
+  return { pass, positions };
+}
+
+// Creates a small marker the first time it's called for a given ref, then
+// just repositions it on every subsequent call — avoids piling up duplicate
+// DOM markers as this runs on every position update.
+function upsertPointMarker(
+  ref: { current: maplibregl.Marker | null },
+  map: maplibregl.Map,
+  position: SatellitePosition,
+  label: string,
+  dotClassName: string,
+) {
+  const lngLat: [number, number] = [
+    position.satlongitude,
+    position.satlatitude,
+  ];
+  if (ref.current) {
+    ref.current.setLngLat(lngLat);
+    return;
+  }
+  const el = document.createElement("div");
+  el.className = dotClassName;
+  ref.current = new maplibregl.Marker({ element: el })
+    .setLngLat(lngLat)
+    .setPopup(new maplibregl.Popup({ closeButton: false }).setText(label))
+    .addTo(map);
+}
+
 // Ground-track map for the active pass: observer marker, live satellite
-// marker, and the path accumulated so far. Only mounted while a pass is
-// active, so the (relatively expensive) map init/teardown is tied to this
-// component's own mount/unmount rather than running on every render.
+// marker, and the full rise → max elevation → set trajectory (not just the
+// trail behind the satellite). Only mounted while a pass is active, so the
+// (relatively expensive) map init/teardown is tied to this component's own
+// mount/unmount rather than running on every render.
 function LiveMap({
   location,
+  selectedPass,
   positions,
   current,
 }: {
   location: Location;
+  selectedPass: SatellitePass;
   positions: SatellitePosition[] | null;
   current: SatellitePosition | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const satMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const riseMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const setMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const peakMarkerRef = useRef<maplibregl.Marker | null>(null);
   const hasFitRef = useRef(false);
+  const [mapFailed, setMapFailed] = useState(false);
 
   // Create the map once on mount, tear it down on unmount. `location` is
   // only read here for the initial center/observer marker — a pass is
@@ -53,6 +164,13 @@ function LiveMap({
       attributionControl: false,
     });
     mapRef.current = map;
+
+    // Surface a style/tile/network failure instead of leaving the map
+    // silently blank — this fires for e.g. an unreachable basemap URL.
+    map.on("error", (e) => {
+      console.error("MapLibre error:", e.error);
+      setMapFailed(true);
+    });
 
     new maplibregl.Marker({ color: "#2dd4bf" })
       .setLngLat([location.lng, location.lat])
@@ -91,13 +209,16 @@ function LiveMap({
       map.remove();
       mapRef.current = null;
       satMarkerRef.current = null;
+      riseMarkerRef.current = null;
+      setMarkerRef.current = null;
+      peakMarkerRef.current = null;
       hasFitRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Move the satellite marker + extend the ground-track line as new
-  // positions arrive, imperatively — never recreates the map or marker.
+  // Move the satellite marker + (re)draw the full rise → set trajectory as
+  // new positions arrive, imperatively — never recreates the map or marker.
   useEffect(() => {
     const map = mapRef.current;
     const marker = satMarkerRef.current;
@@ -105,46 +226,106 @@ function LiveMap({
 
     marker.setLngLat([current.satlongitude, current.satlatitude]);
 
+    // Trim to the pass's actual visible window — the fetched batch can
+    // include some samples just before rise or after set (N2YO's positions
+    // endpoint returns a fixed window from "now", not clipped to the pass),
+    // which are real orbit points but not part of "rise to fall".
+    const visible = (positions ?? []).filter(
+      (p) =>
+        p.timestamp >= selectedPass.startUTC &&
+        p.timestamp <= selectedPass.endUTC,
+    );
+
     const source = map.getSource("ground-track") as
       | maplibregl.GeoJSONSource
       | undefined;
-    if (source) {
-      const track = (positions ?? [])
-        .filter((p) => p.timestamp <= current.timestamp)
-        .map((p) => [p.satlongitude, p.satlatitude]);
+    if (source && visible.length) {
       source.setData({
         type: "Feature",
         properties: {},
-        geometry: { type: "LineString", coordinates: track },
+        geometry: {
+          type: "LineString",
+          coordinates: visible.map((p) => [p.satlongitude, p.satlatitude]),
+        },
       });
     }
 
-    // Fit the view to observer + satellite once, the first time we have a
-    // live fix — after that, leave the user's pan/zoom alone.
+    if (visible.length) {
+      upsertPointMarker(
+        riseMarkerRef,
+        map,
+        visible[0],
+        "Rise",
+        "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-teal",
+      );
+      upsertPointMarker(
+        setMarkerRef,
+        map,
+        visible[visible.length - 1],
+        "Set",
+        "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-amber",
+      );
+      const peak = closestByTimestamp(visible, selectedPass.maxUTC);
+      if (peak) {
+        upsertPointMarker(
+          peakMarkerRef,
+          map,
+          peak,
+          "Max elevation",
+          "w-3 h-3 rounded-full bg-aw-purple border-2 border-white shadow-md",
+        );
+      }
+    }
+
+    // Fit the view to the whole visible trajectory (or just observer +
+    // satellite if positions haven't loaded yet) once, the first time we
+    // have a live fix — after that, leave the user's pan/zoom alone.
     if (!hasFitRef.current && map.isStyleLoaded()) {
       hasFitRef.current = true;
       const bounds = new maplibregl.LngLatBounds(
         [location.lng, location.lat],
         [location.lng, location.lat],
       );
-      bounds.extend([current.satlongitude, current.satlatitude]);
+      if (visible.length) {
+        visible.forEach((p) => bounds.extend([p.satlongitude, p.satlatitude]));
+      } else {
+        bounds.extend([current.satlongitude, current.satlatitude]);
+      }
       map.fitBounds(bounds, { padding: 60, maxZoom: 11, duration: 0 });
     }
-  }, [current, positions, location]);
+  }, [current, positions, location, selectedPass]);
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0 h-full w-full"
-      role="img"
-      aria-label="Map of your location and the satellite's live ground track"
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="absolute inset-0 h-full w-full"
+        role="img"
+        aria-label="Map of your location and the satellite's live ground track"
+      />
+      {mapFailed && (
+        <div className="absolute inset-0 flex items-center justify-center bg-aw-bg">
+          <p className="text-aw-text-muted text-xs px-6 text-center">
+            Map failed to load — check your connection.
+          </p>
+        </div>
+      )}
+    </>
   );
 }
 
 export default function SatelliteMapCompass() {
   const { selectedPass, location } = useAstroStore();
   const { permission, heading, requestAccess } = useDeviceOrientation();
+  const [preview, setPreview] = useState<{
+    pass: SatellitePass;
+    positions: SatellitePosition[];
+  } | null>(null);
+
+  // A real selected pass always wins over a preview — the preview is only
+  // ever a stand-in for when there's nothing real to look at.
+  const isPreviewing = !selectedPass && !!preview;
+  const effectivePass = selectedPass ?? preview?.pass ?? null;
   const {
     phase,
     nowSec,
@@ -154,14 +335,27 @@ export default function SatelliteMapCompass() {
     liveEl,
     isEstimating,
     fetchError,
-  } = useLiveSatelliteTracking(selectedPass, location);
+  } = useLiveSatelliteTracking(
+    effectivePass,
+    location,
+    isPreviewing ? preview.positions : undefined,
+  );
 
-  if (!selectedPass) {
+  if (!effectivePass) {
     return (
-      <div className="relative w-full rounded-xl overflow-hidden border border-aw-border bg-aw-bg min-h-[250px] flex items-center justify-center">
+      <div className="relative w-full rounded-xl overflow-hidden border border-aw-border bg-aw-bg min-h-[250px] flex flex-col items-center justify-center gap-3">
         <p className="text-aw-text-muted text-xs">
           Select a pass from the left panel
         </p>
+        {location && (
+          <button
+            onClick={() => setPreview(buildPreviewScenario(location))}
+            className="cursor-pointer text-[11px] text-aw-text-muted hover:text-aw-purple underline decoration-dotted"
+            title="Shows the map + compass with synthetic data — no real pass or API calls involved."
+          >
+            Preview map (test)
+          </button>
+        )}
       </div>
     );
   }
@@ -172,32 +366,32 @@ export default function SatelliteMapCompass() {
     return (
       <div className="relative w-full rounded-xl overflow-hidden border border-aw-border bg-aw-bg min-h-[250px] flex flex-col items-center justify-center gap-3 py-7 px-5 text-center">
         <span className="text-[10px] font-semibold tracking-wider uppercase text-aw-text-muted">
-          {selectedPass.satname} ·{" "}
+          {effectivePass.satname} ·{" "}
           {phase === "upcoming" ? "Next pass" : "Pass ended"}
         </span>
 
         {phase === "upcoming" && (
           <>
             <div className="text-4xl font-semibold text-aw-purple tabular-nums">
-              {formatCountdown(selectedPass.startUTC - nowSec)}
+              {formatCountdown(effectivePass.startUTC - nowSec)}
             </div>
             <div className="flex gap-5 text-[12px] text-aw-text-sec tabular-nums">
               <span>
                 Rise{" "}
                 <b className="text-aw-text font-semibold">
-                  {selectedPass.startAzCompass} · {selectedPass.startEl}°
+                  {effectivePass.startAzCompass} · {effectivePass.startEl}°
                 </b>
               </span>
               <span>
                 Peak{" "}
                 <b className="text-aw-text font-semibold">
-                  {selectedPass.maxEl}°
+                  {effectivePass.maxEl}°
                 </b>
               </span>
               <span>
                 Duration{" "}
                 <b className="text-aw-text font-semibold">
-                  {formatCountdown(selectedPass.duration)}
+                  {formatCountdown(effectivePass.duration)}
                 </b>
               </span>
             </div>
@@ -218,7 +412,12 @@ export default function SatelliteMapCompass() {
   return (
     <div className="relative w-full h-[340px] rounded-xl overflow-hidden border border-aw-border bg-aw-bg">
       {location ? (
-        <LiveMap location={location} positions={positions} current={current} />
+        <LiveMap
+          location={location}
+          selectedPass={effectivePass}
+          positions={positions}
+          current={current}
+        />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center">
           <p className="text-aw-text-muted text-xs">
@@ -228,7 +427,7 @@ export default function SatelliteMapCompass() {
       )}
 
       <span className="absolute top-2.5 left-2.5 z-10 rounded-md bg-aw-bg/90 backdrop-blur-sm px-2 py-1 text-[10px] font-semibold tracking-wider uppercase text-aw-text-muted border border-aw-border">
-        {selectedPass.satname} · Active now
+        {effectivePass.satname} · Active now
       </span>
 
       <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 rounded-xl border border-aw-border bg-aw-bg/90 backdrop-blur-sm px-4 py-3 shadow-lg max-w-[260px]">

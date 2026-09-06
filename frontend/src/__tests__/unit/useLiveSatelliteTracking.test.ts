@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act } from "react";
 import { renderHook } from "@testing-library/react";
 import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
-import type { Location, SatellitePass } from "@/types";
+import type { Location, SatellitePass, SatellitePosition } from "@/types";
 
 const BASE_SEC = 1_700_000_000;
 
@@ -116,5 +116,36 @@ describe("useLiveSatelliteTracking", () => {
       await vi.advanceTimersByTimeAsync(1_000);
     });
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("never fetches when mockPositions is supplied, using it as-is instead", async () => {
+    // active pass (a real fetch would definitely fire without mockPositions)
+    const pass = makePass({
+      startUTC: BASE_SEC - 10,
+      maxUTC: BASE_SEC + 50,
+      endUTC: BASE_SEC + 110,
+    });
+    const mockPositions: SatellitePosition[] = [
+      {
+        azimuth: 200,
+        elevation: 10,
+        satlatitude: 1,
+        satlongitude: 1,
+        sataltitude: 400,
+        timestamp: BASE_SEC,
+      },
+    ];
+
+    const { result } = renderHook(() =>
+      useLiveSatelliteTracking(pass, location, mockPositions),
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(result.current.positions).toBe(mockPositions);
+    expect(result.current.current).toEqual(mockPositions[0]);
   });
 });
