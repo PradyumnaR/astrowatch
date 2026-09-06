@@ -16,6 +16,18 @@ import type { Location, SatellitePass, SatellitePosition } from "@/types";
 // Free, no-API-key vector basemap — see https://openfreemap.org.
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
+// Self-host MapLibre's worker script instead of relying on its own
+// `new Worker(new URL("./maplibre-gl-worker.mjs", import.meta.url))`
+// resolution — that pattern needs bundler-level support to rewrite the URL
+// correctly, and in production here it instead resolved to a URL that
+// doesn't exist, so the browser got an HTML 404 back for what it expected
+// to be a JS module and refused to run it, leaving the map silently blank.
+// The file this points at is copied from node_modules by
+// scripts/copy-maplibre-worker.mjs (via the postinstall/build scripts).
+// Set once at module scope, before any Map (and its worker pool) is ever
+// created.
+maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
+
 function formatCountdown(totalSeconds: number): string {
   const s = Math.max(0, Math.round(totalSeconds));
   const h = Math.floor(s / 3600);

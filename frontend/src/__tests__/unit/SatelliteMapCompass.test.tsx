@@ -40,6 +40,7 @@ vi.mock("maplibre-gl", () => {
     Marker: FakeMarker,
     Popup: FakePopup,
     LngLatBounds: FakeLngLatBounds,
+    setWorkerUrl: vi.fn(),
   };
 });
 vi.mock("@/stores/astrowatch");

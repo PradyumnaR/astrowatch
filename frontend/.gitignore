@@ -17,6 +17,11 @@
 /.next/
 /out/
 
+# self-hosted maplibre-gl worker files, copied from node_modules by
+# scripts/copy-maplibre-worker.mjs (via postinstall/build) — regenerated,
+# not source
+/public/maplibre/
+
 # production
 /build
 
