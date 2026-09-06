@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
-import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
+import {
+  estimatePosition,
+  useLiveSatelliteTracking,
+} from "@/hooks/useLiveSatelliteTracking";
 import { azToCompass } from "@/lib/compass";
 import CompassArrow from "./CompassArrow";
 import type { Location, SatellitePass, SatellitePosition } from "@/types";
@@ -31,6 +34,57 @@ function closestByTimestamp(
       ? p
       : closest;
   }, undefined);
+}
+
+// Fabricates a short "active right now" pass + a matching synthetic
+// position track, entirely client-side — used only by the "Preview map"
+// button so the map/compass/trajectory can be exercised on demand without
+// any real pass and, crucially, without a single call to /api/positions
+// (unlike the old real-data "simulate" button this replaces).
+function buildPreviewScenario(location: Location): {
+  pass: SatellitePass;
+  positions: SatellitePosition[];
+} {
+  const now = Math.floor(Date.now() / 1000);
+  const startUTC = now - 5;
+  const maxUTC = now + 55;
+  const endUTC = now + 115;
+  const startAz = 200;
+  const maxAz = 270;
+  const endAz = 10;
+
+  const pass: SatellitePass = {
+    satid: 0,
+    satname: "Preview Satellite",
+    startAz,
+    startAzCompass: azToCompass(startAz),
+    startEl: 10,
+    startUTC,
+    maxAz,
+    maxEl: 60,
+    maxUTC,
+    endAz,
+    endUTC,
+    mag: -2,
+    duration: endUTC - startUTC,
+  };
+
+  const positions: SatellitePosition[] = [];
+  for (let t = startUTC; t <= endUTC; t++) {
+    const frac = (t - startUTC) / (endUTC - startUTC);
+    positions.push({
+      ...estimatePosition(pass, t),
+      // sweeps a few degrees across the observer's location — not real
+      // orbital geometry, just enough to see the map, marker, and
+      // trajectory line move.
+      satlatitude: location.lat + (frac - 0.5) * 4,
+      satlongitude: location.lng + (frac - 0.5) * 6,
+      sataltitude: 400,
+      timestamp: t,
+    });
+  }
+
+  return { pass, positions };
 }
 
 // Creates a small marker the first time it's called for a given ref, then
@@ -79,6 +133,7 @@ function LiveMap({
   const setMarkerRef = useRef<maplibregl.Marker | null>(null);
   const peakMarkerRef = useRef<maplibregl.Marker | null>(null);
   const hasFitRef = useRef(false);
+  const [mapFailed, setMapFailed] = useState(false);
 
   // Create the map once on mount, tear it down on unmount. `location` is
   // only read here for the initial center/observer marker — a pass is
@@ -94,6 +149,13 @@ function LiveMap({
       attributionControl: false,
     });
     mapRef.current = map;
+
+    // Surface a style/tile/network failure instead of leaving the map
+    // silently blank — this fires for e.g. an unreachable basemap URL.
+    map.on("error", (e) => {
+      console.error("MapLibre error:", e.error);
+      setMapFailed(true);
+    });
 
     new maplibregl.Marker({ color: "#2dd4bf" })
       .setLngLat([location.lng, location.lat])
@@ -219,18 +281,36 @@ function LiveMap({
   }, [current, positions, location, selectedPass]);
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0"
-      role="img"
-      aria-label="Map of your location and the satellite's live ground track"
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="absolute inset-0"
+        role="img"
+        aria-label="Map of your location and the satellite's live ground track"
+      />
+      {mapFailed && (
+        <div className="absolute inset-0 flex items-center justify-center bg-aw-bg">
+          <p className="text-aw-text-muted text-xs px-6 text-center">
+            Map failed to load — check your connection.
+          </p>
+        </div>
+      )}
+    </>
   );
 }
 
 export default function SatelliteMapCompass() {
   const { selectedPass, location } = useAstroStore();
   const { permission, heading, requestAccess } = useDeviceOrientation();
+  const [preview, setPreview] = useState<{
+    pass: SatellitePass;
+    positions: SatellitePosition[];
+  } | null>(null);
+
+  // A real selected pass always wins over a preview — the preview is only
+  // ever a stand-in for when there's nothing real to look at.
+  const isPreviewing = !selectedPass && !!preview;
+  const effectivePass = selectedPass ?? preview?.pass ?? null;
   const {
     phase,
     nowSec,
@@ -240,14 +320,27 @@ export default function SatelliteMapCompass() {
     liveEl,
     isEstimating,
     fetchError,
-  } = useLiveSatelliteTracking(selectedPass, location);
+  } = useLiveSatelliteTracking(
+    effectivePass,
+    location,
+    isPreviewing ? preview.positions : undefined,
+  );
 
-  if (!selectedPass) {
+  if (!effectivePass) {
     return (
-      <div className="relative w-full rounded-xl overflow-hidden border border-aw-border bg-aw-bg min-h-[250px] flex items-center justify-center">
+      <div className="relative w-full rounded-xl overflow-hidden border border-aw-border bg-aw-bg min-h-[250px] flex flex-col items-center justify-center gap-3">
         <p className="text-aw-text-muted text-xs">
           Select a pass from the left panel
         </p>
+        {location && (
+          <button
+            onClick={() => setPreview(buildPreviewScenario(location))}
+            className="cursor-pointer text-[11px] text-aw-text-muted hover:text-aw-purple underline decoration-dotted"
+            title="Shows the map + compass with synthetic data — no real pass or API calls involved."
+          >
+            Preview map (test)
+          </button>
+        )}
       </div>
     );
   }
@@ -258,32 +351,32 @@ export default function SatelliteMapCompass() {
     return (
       <div className="relative w-full rounded-xl overflow-hidden border border-aw-border bg-aw-bg min-h-[250px] flex flex-col items-center justify-center gap-3 py-7 px-5 text-center">
         <span className="text-[10px] font-semibold tracking-wider uppercase text-aw-text-muted">
-          {selectedPass.satname} ·{" "}
+          {effectivePass.satname} ·{" "}
           {phase === "upcoming" ? "Next pass" : "Pass ended"}
         </span>
 
         {phase === "upcoming" && (
           <>
             <div className="text-4xl font-semibold text-aw-purple tabular-nums">
-              {formatCountdown(selectedPass.startUTC - nowSec)}
+              {formatCountdown(effectivePass.startUTC - nowSec)}
             </div>
             <div className="flex gap-5 text-[12px] text-aw-text-sec tabular-nums">
               <span>
                 Rise{" "}
                 <b className="text-aw-text font-semibold">
-                  {selectedPass.startAzCompass} · {selectedPass.startEl}°
+                  {effectivePass.startAzCompass} · {effectivePass.startEl}°
                 </b>
               </span>
               <span>
                 Peak{" "}
                 <b className="text-aw-text font-semibold">
-                  {selectedPass.maxEl}°
+                  {effectivePass.maxEl}°
                 </b>
               </span>
               <span>
                 Duration{" "}
                 <b className="text-aw-text font-semibold">
-                  {formatCountdown(selectedPass.duration)}
+                  {formatCountdown(effectivePass.duration)}
                 </b>
               </span>
             </div>
@@ -306,7 +399,7 @@ export default function SatelliteMapCompass() {
       {location ? (
         <LiveMap
           location={location}
-          selectedPass={selectedPass}
+          selectedPass={effectivePass}
           positions={positions}
           current={current}
         />
@@ -319,7 +412,7 @@ export default function SatelliteMapCompass() {
       )}
 
       <span className="absolute top-2.5 left-2.5 z-10 rounded-md bg-aw-bg/90 backdrop-blur-sm px-2 py-1 text-[10px] font-semibold tracking-wider uppercase text-aw-text-muted border border-aw-border">
-        {selectedPass.satname} · Active now
+        {effectivePass.satname} · Active now
       </span>
 
       <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 rounded-xl border border-aw-border bg-aw-bg/90 backdrop-blur-sm px-4 py-3 shadow-lg max-w-[260px]">
