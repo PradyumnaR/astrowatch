@@ -147,7 +147,6 @@ function LiveMap({
   const riseMarkerRef = useRef<maplibregl.Marker | null>(null);
   const setMarkerRef = useRef<maplibregl.Marker | null>(null);
   const peakMarkerRef = useRef<maplibregl.Marker | null>(null);
-  const hasFitRef = useRef(false);
   const [mapFailed, setMapFailed] = useState(false);
 
   // Create the map once on mount, tear it down on unmount. `location` is
@@ -205,14 +204,26 @@ function LiveMap({
       });
     });
 
+    // MapLibre measures its container's size once, synchronously, right
+    // here at construction — if that measurement is stale (e.g. the
+    // container's flex/absolute layout hasn't fully settled yet on this
+    // exact tick), the canvas's internal drawing buffer ends up mismatched
+    // with its actual on-screen size: blurry (a small buffer stretched by
+    // CSS) and effectively zoomed out relative to the requested `zoom`,
+    // until something (like a manual zoom) forces MapLibre to recompute.
+    // A ResizeObserver fires once immediately on observe() with the
+    // current size, so this also corrects that first stale measurement.
+    const resizeObserver = new ResizeObserver(() => map.resize());
+    resizeObserver.observe(containerRef.current);
+
     return () => {
+      resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
       satMarkerRef.current = null;
       riseMarkerRef.current = null;
       setMarkerRef.current = null;
       peakMarkerRef.current = null;
-      hasFitRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -276,24 +287,7 @@ function LiveMap({
         );
       }
     }
-
-    // Fit the view to the whole visible trajectory (or just observer +
-    // satellite if positions haven't loaded yet) once, the first time we
-    // have a live fix — after that, leave the user's pan/zoom alone.
-    if (!hasFitRef.current && map.isStyleLoaded()) {
-      hasFitRef.current = true;
-      const bounds = new maplibregl.LngLatBounds(
-        [location.lng, location.lat],
-        [location.lng, location.lat],
-      );
-      if (visible.length) {
-        visible.forEach((p) => bounds.extend([p.satlongitude, p.satlatitude]));
-      } else {
-        bounds.extend([current.satlongitude, current.satlatitude]);
-      }
-      map.fitBounds(bounds, { padding: 60, maxZoom: 11, duration: 0 });
-    }
-  }, [current, positions, location, selectedPass]);
+  }, [current, positions, selectedPass]);
 
   return (
     <>
