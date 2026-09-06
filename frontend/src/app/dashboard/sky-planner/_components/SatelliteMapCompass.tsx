@@ -316,10 +316,26 @@ export default function SatelliteMapCompass() {
     positions: SatellitePosition[];
   } | null>(null);
 
-  // A real selected pass always wins over a preview — the preview is only
-  // ever a stand-in for when there's nothing real to look at.
-  const isPreviewing = !selectedPass && !!preview;
-  const effectivePass = selectedPass ?? preview?.pass ?? null;
+  // A newly-selected real pass always takes over from an active preview —
+  // adjusted during render in response to the prop change (same pattern
+  // useLiveSatelliteTracking uses for its own passKey reset) rather than in
+  // an effect, so switching passes while previewing doesn't get stuck
+  // showing stale synthetic data.
+  const selectedPassKey = selectedPass
+    ? `${selectedPass.satid}-${selectedPass.startUTC}`
+    : null;
+  const [prevSelectedPassKey, setPrevSelectedPassKey] =
+    useState(selectedPassKey);
+  if (selectedPassKey !== prevSelectedPassKey) {
+    setPrevSelectedPassKey(selectedPassKey);
+    if (preview) setPreview(null);
+  }
+
+  // While active, a preview intentionally overrides any real selection —
+  // it's an explicit, opt-in choice (the button doubles as an "exit
+  // preview" toggle), not just a stand-in for "nothing real selected".
+  const isPreviewing = !!preview;
+  const effectivePass = preview?.pass ?? selectedPass ?? null;
   const {
     phase,
     nowSec,
@@ -335,21 +351,29 @@ export default function SatelliteMapCompass() {
     isPreviewing ? preview.positions : undefined,
   );
 
+  // Always reachable regardless of whether a real pass happens to be
+  // selected — PassList auto-selects the best pass as soon as it loads, so
+  // gating this on "nothing selected" would make it unreachable in
+  // practice most of the time.
+  const previewToggle = location ? (
+    <button
+      onClick={() =>
+        setPreview(isPreviewing ? null : buildPreviewScenario(location))
+      }
+      className="cursor-pointer text-[11px] text-aw-text-muted hover:text-aw-purple underline decoration-dotted"
+      title="Shows the map + compass with synthetic data — no real pass or API calls involved."
+    >
+      {isPreviewing ? "Exit preview" : "Preview map (test)"}
+    </button>
+  ) : null;
+
   if (!effectivePass) {
     return (
       <div className="relative w-full rounded-xl overflow-hidden border border-aw-border bg-aw-bg min-h-[250px] flex flex-col items-center justify-center gap-3">
         <p className="text-aw-text-muted text-xs">
           Select a pass from the left panel
         </p>
-        {location && (
-          <button
-            onClick={() => setPreview(buildPreviewScenario(location))}
-            className="cursor-pointer text-[11px] text-aw-text-muted hover:text-aw-purple underline decoration-dotted"
-            title="Shows the map + compass with synthetic data — no real pass or API calls involved."
-          >
-            Preview map (test)
-          </button>
-        )}
+        {previewToggle}
       </div>
     );
   }
@@ -399,6 +423,8 @@ export default function SatelliteMapCompass() {
         {phase === "ended" && (
           <p className="text-aw-text-sec text-[13px]">This pass has ended.</p>
         )}
+
+        {previewToggle}
       </div>
     );
   }
@@ -423,6 +449,12 @@ export default function SatelliteMapCompass() {
       <span className="absolute top-2.5 left-2.5 z-10 rounded-md bg-aw-bg/90 backdrop-blur-sm px-2 py-1 text-[10px] font-semibold tracking-wider uppercase text-aw-text-muted border border-aw-border">
         {effectivePass.satname} · Active now
       </span>
+
+      {previewToggle && (
+        <div className="absolute top-2.5 right-2.5 z-10 rounded-md bg-aw-bg/90 backdrop-blur-sm px-2 py-1 border border-aw-border">
+          {previewToggle}
+        </div>
+      )}
 
       <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 rounded-xl border border-aw-border bg-aw-bg/90 backdrop-blur-sm px-4 py-3 shadow-lg max-w-[260px]">
         {permission === "prompt-needed" ? (

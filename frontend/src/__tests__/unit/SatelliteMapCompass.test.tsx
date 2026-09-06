@@ -170,6 +170,20 @@ describe("SatelliteMapCompass", () => {
     );
   });
 
+  it("keeps the Preview map button reachable even when a real pass is already selected", () => {
+    // PassList auto-selects the best real pass as soon as it loads, so
+    // gating the preview button on "nothing selected" would make it
+    // unreachable in practice almost all the time — it must show up
+    // alongside a real selected pass too.
+    mockTracking({ phase: "upcoming" });
+
+    render(<SatelliteMapCompass />);
+
+    expect(
+      screen.getByRole("button", { name: /preview map \(test\)/i }),
+    ).toBeInTheDocument();
+  });
+
   it("falls back to numeric az/el when compass permission is denied", () => {
     vi.mocked(useDeviceOrientation).mockReturnValue({
       permission: "denied",
