@@ -9,9 +9,11 @@ import { useEffect, useRef, useState } from "react";
 export default function CompassArrow({
   targetAz,
   heading,
+  size = 150,
 }: {
   targetAz: number;
   heading: number;
+  size?: number;
 }) {
   // wrapped into [0, 360) — on its own this would make the arrow spin
   // almost a full circle whenever a real change crosses the 359°→0° seam
@@ -37,7 +39,7 @@ export default function CompassArrow({
 
   return (
     <>
-      <div className="relative w-[150px] h-[150px]">
+      <div className="relative" style={{ width: size, height: size }}>
         <div className="absolute inset-0 rounded-full border border-aw-border bg-aw-tint" />
         <div
           className="absolute inset-0 transition-transform duration-150 ease-linear"

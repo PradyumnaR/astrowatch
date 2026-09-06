@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Compass, X } from "lucide-react";
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
 import {
@@ -315,6 +316,7 @@ export default function SatelliteMapCompass() {
     pass: SatellitePass;
     positions: SatellitePosition[];
   } | null>(null);
+  const [compassOpen, setCompassOpen] = useState(true);
 
   // A newly-selected real pass always takes over from an active preview —
   // adjusted during render in response to the prop change (same pattern
@@ -450,71 +452,87 @@ export default function SatelliteMapCompass() {
         {effectivePass.satname} · Active now
       </span>
 
-      {previewToggle && (
-        <div className="absolute top-2.5 right-2.5 z-10 rounded-md bg-aw-bg/90 backdrop-blur-sm px-2 py-1 border border-aw-border">
-          {previewToggle}
-        </div>
-      )}
+      <div className="absolute top-2.5 right-2.5 z-10 flex flex-col items-end gap-1.5">
+        {previewToggle && (
+          <div className="rounded-md bg-aw-bg/90 backdrop-blur-sm px-2 py-1 border border-aw-border">
+            {previewToggle}
+          </div>
+        )}
 
-      <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 rounded-xl border border-aw-border bg-aw-bg/90 backdrop-blur-sm px-4 py-3 shadow-lg max-w-[260px]">
-        {permission === "prompt-needed" ? (
-          <>
-            <button
-              onClick={requestAccess}
-              className="h-9 px-5 rounded-lg border border-aw-purple/45 bg-aw-purple/15 text-aw-purple text-[13px] font-medium hover:bg-aw-purple/25 transition-colors cursor-pointer"
-            >
-              Enable compass
-            </button>
-            <p className="text-aw-text-muted text-[11px] text-center">
-              Tap to allow AstroWatch to use your compass for live pointing.
-              Android doesn&apos;t need this step.
-            </p>
-          </>
-        ) : (
-          <>
-            {hasCompass ? (
-              <CompassArrow targetAz={liveAz} heading={heading as number} />
-            ) : (
+        <button
+          onClick={() => setCompassOpen((open) => !open)}
+          className="cursor-pointer rounded-full bg-aw-bg/90 backdrop-blur-sm border border-aw-border p-1.5 text-aw-text-muted hover:text-aw-purple transition-colors"
+          title={compassOpen ? "Hide compass" : "Show compass"}
+        >
+          {compassOpen ? <X size={14} /> : <Compass size={14} />}
+        </button>
+
+        {compassOpen && (
+          <div className="flex flex-col items-center gap-1.5 rounded-xl border border-aw-border bg-aw-bg/90 backdrop-blur-sm px-3 py-2 shadow-lg max-w-[160px]">
+            {permission === "prompt-needed" ? (
               <>
-                <div className="text-[26px] font-semibold tabular-nums">
-                  {Math.round(liveAz)}° ({azToCompass(liveAz)}),{" "}
-                  {Math.round(liveEl)}° up
-                </div>
-                <p className="text-aw-text-muted text-[11px] text-center">
-                  {permission === "denied"
-                    ? "Compass access was denied — showing numeric direction instead."
-                    : "Compass unavailable — showing numeric direction instead."}
+                <button
+                  onClick={requestAccess}
+                  className="h-8 px-3 rounded-lg border border-aw-purple/45 bg-aw-purple/15 text-aw-purple text-[11px] font-medium hover:bg-aw-purple/25 transition-colors cursor-pointer"
+                >
+                  Enable compass
+                </button>
+                <p className="text-aw-text-muted text-[10px] text-center">
+                  Tap to allow your compass for live pointing. Android
+                  doesn&apos;t need this.
                 </p>
               </>
-            )}
-
-            <div className="w-full">
-              <div className="text-[28px] font-semibold text-aw-purple tabular-nums leading-none text-center">
-                {Math.round(liveEl)}°
-              </div>
-              <div className="text-[11px] text-aw-text-muted mt-0.5 text-center">
-                {isEstimating ? "Look up (estimating…)" : "Look up"}
-              </div>
-              <div className="flex gap-1 mt-2.5">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`flex-1 h-1 rounded-full ${
-                      i < Math.round(liveEl / 9)
-                        ? "bg-aw-purple"
-                        : "bg-aw-tint-hover"
-                    }`}
+            ) : (
+              <>
+                {hasCompass ? (
+                  <CompassArrow
+                    targetAz={liveAz}
+                    heading={heading as number}
+                    size={72}
                   />
-                ))}
-              </div>
-            </div>
+                ) : (
+                  <>
+                    <div className="text-[14px] font-semibold tabular-nums text-center">
+                      {Math.round(liveAz)}° ({azToCompass(liveAz)}),{" "}
+                      {Math.round(liveEl)}° up
+                    </div>
+                    <p className="text-aw-text-muted text-[10px] text-center">
+                      {permission === "denied"
+                        ? "Compass denied — numeric only."
+                        : "Compass unavailable — numeric only."}
+                    </p>
+                  </>
+                )}
 
-            {fetchError && (
-              <p className="text-aw-amber text-[11px] text-center">
-                {fetchError}
-              </p>
+                <div className="w-full">
+                  <div className="text-[16px] font-semibold text-aw-purple tabular-nums leading-none text-center">
+                    {Math.round(liveEl)}°
+                  </div>
+                  <div className="text-[9px] text-aw-text-muted mt-0.5 text-center">
+                    {isEstimating ? "Look up (est…)" : "Look up"}
+                  </div>
+                  <div className="flex gap-0.5 mt-1.5">
+                    {Array.from({ length: 10 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`flex-1 h-0.5 rounded-full ${
+                          i < Math.round(liveEl / 9)
+                            ? "bg-aw-purple"
+                            : "bg-aw-tint-hover"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {fetchError && (
+                  <p className="text-aw-amber text-[9px] text-center">
+                    {fetchError}
+                  </p>
+                )}
+              </>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>

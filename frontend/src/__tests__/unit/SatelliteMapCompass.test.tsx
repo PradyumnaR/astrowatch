@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import SatelliteMapCompass from "@/app/dashboard/sky-planner/_components/SatelliteMapCompass";
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
@@ -138,6 +138,28 @@ describe("SatelliteMapCompass", () => {
     ).toBeInTheDocument();
   });
 
+  it("toggles the compass card open/closed without affecting the map badges", () => {
+    mockTracking({ phase: "active" });
+
+    render(<SatelliteMapCompass />);
+
+    // open by default
+    expect(
+      screen.getByRole("button", { name: /enable compass/i }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle("Hide compass"));
+    expect(
+      screen.queryByRole("button", { name: /enable compass/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/active now/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle("Show compass"));
+    expect(
+      screen.getByRole("button", { name: /enable compass/i }),
+    ).toBeInTheDocument();
+  });
+
   it("draws the full rise-to-set trajectory, not just the elapsed trail", () => {
     // One sample before rise, one after set — both real orbit points N2YO
     // can include in the batch, but outside what "rise to fall" means here
@@ -194,6 +216,6 @@ describe("SatelliteMapCompass", () => {
 
     render(<SatelliteMapCompass />);
 
-    expect(screen.getByText(/compass access was denied/i)).toBeInTheDocument();
+    expect(screen.getByText(/compass denied/i)).toBeInTheDocument();
   });
 });
