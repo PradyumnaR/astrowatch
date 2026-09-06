@@ -448,7 +448,10 @@ export default function SatelliteMapCompass() {
         </div>
       )}
 
-      <span className="absolute top-2.5 left-2.5 z-10 rounded-md bg-aw-bg/90 backdrop-blur-sm px-2 py-1 text-[10px] font-semibold tracking-wider uppercase text-aw-text-muted border border-aw-border">
+      <span
+        className="absolute top-2.5 left-2.5 z-10 inline-block max-w-[55%] truncate rounded-md bg-aw-bg/90 backdrop-blur-sm px-2 py-1 text-[10px] font-semibold tracking-wider uppercase text-aw-text-muted border border-aw-border"
+        title={`${effectivePass.satname} · Active now`}
+      >
         {effectivePass.satname} · Active now
       </span>
 
