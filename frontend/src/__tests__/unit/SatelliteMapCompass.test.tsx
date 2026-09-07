@@ -4,7 +4,10 @@ import SatelliteMapCompass from "@/app/dashboard/sky-planner/_components/Satelli
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
 import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
-import { buildPassTrajectory } from "@/lib/groundTrack";
+import {
+  buildPassTrajectory,
+  DEFAULT_SAT_ALTITUDE_KM,
+} from "@/lib/groundTrack";
 import type { Location, SatellitePass } from "@/types";
 
 // Exposed so tests can assert what the map was actually told to draw,
@@ -171,26 +174,25 @@ describe("SatelliteMapCompass", () => {
   });
 
   it("draws the trajectory from the pass's own az/el geometry, independent of live data", () => {
-    const expectedCoordinates = buildPassTrajectory(pass, location).map(
+    const expectedCoordinates = buildPassTrajectory(pass, location).line.map(
       (p) => [p.lng, p.lat],
     );
 
+    // no live fix yet — the default-altitude trajectory should still draw
     mockTracking({ phase: "active", current: null });
     const { unmount } = render(<SatelliteMapCompass />);
-    expect(addSourceMock).toHaveBeenCalledWith(
-      "ground-track",
+    expect(groundTrackSource.setData).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          geometry: { type: "LineString", coordinates: expectedCoordinates },
-        }),
+        geometry: { type: "LineString", coordinates: expectedCoordinates },
       }),
     );
     unmount();
 
     // Simulate a remount with a live sample far from the drawn path (as if
-    // real time had moved on) — the trajectory must be identical, since it
-    // was never derived from `current` in the first place.
-    addSourceMock.mockClear();
+    // real time had moved on) — the shape must be identical (same default
+    // altitude, since this sample's altitude equals it), since it was
+    // never derived from `current`'s lat/lng in the first place.
+    groundTrackSource.setData.mockClear();
     mockTracking({
       phase: "active",
       current: {
@@ -198,19 +200,57 @@ describe("SatelliteMapCompass", () => {
         elevation: 999,
         satlatitude: -60,
         satlongitude: 170,
-        sataltitude: 400,
+        sataltitude: DEFAULT_SAT_ALTITUDE_KM,
         timestamp: pass.maxUTC,
       },
     });
     render(<SatelliteMapCompass />);
-    expect(addSourceMock).toHaveBeenCalledWith(
-      "ground-track",
+    expect(groundTrackSource.setData).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          geometry: { type: "LineString", coordinates: expectedCoordinates },
-        }),
+        geometry: { type: "LineString", coordinates: expectedCoordinates },
       }),
     );
+  });
+
+  it("refines the trajectory once a live fix supplies a real altitude, without duplicating markers", () => {
+    mockTracking({ phase: "active", current: null });
+    const { rerender } = render(<SatelliteMapCompass />);
+
+    const initialCall = groundTrackSource.setData.mock.calls.length;
+    const initialMarkerCreations = popupSetTextMock.mock.calls.length;
+
+    // a live fix arrives with a notably different real altitude
+    mockTracking({
+      phase: "active",
+      current: {
+        azimuth: pass.maxAz,
+        elevation: pass.maxEl,
+        satlatitude: 40,
+        satlongitude: -100,
+        sataltitude: 535, // e.g. Hubble, vs. the 420km default
+        timestamp: pass.maxUTC,
+      },
+    });
+    rerender(<SatelliteMapCompass />);
+
+    const expectedRefined = buildPassTrajectory(
+      pass,
+      location,
+      undefined,
+      535,
+    ).line.map((p) => [p.lng, p.lat]);
+
+    // re-drawn with the refined altitude...
+    expect(groundTrackSource.setData.mock.calls.length).toBeGreaterThan(
+      initialCall,
+    );
+    expect(groundTrackSource.setData).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        geometry: { type: "LineString", coordinates: expectedRefined },
+      }),
+    );
+    // ...by repositioning the same 3 markers, not creating new ones
+    expect(popupSetTextMock.mock.calls.length).toBe(initialMarkerCreations);
   });
 
   it("labels the map markers Start Pass / Max El / End Pass / You", () => {

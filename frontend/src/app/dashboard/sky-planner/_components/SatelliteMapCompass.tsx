@@ -137,12 +137,33 @@ function LiveMap({
   const setMarkerRef = useRef<maplibregl.Marker | null>(null);
   const peakMarkerRef = useRef<maplibregl.Marker | null>(null);
   const [mapFailed, setMapFailed] = useState(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
-  // Stable for the component's lifetime — selectedPass/location are
-  // Zustand-store values, unaffected by remounts.
+  // Captured once from the first live position fix and never overwritten
+  // again — a satellite's altitude barely changes across one short pass,
+  // so this is a one-time refinement, not a reintroduction of the earlier
+  // bug (which was about *accumulating, losable* samples, not a single
+  // stable scalar re-derived identically on every mount).
+  const [knownAltitudeKm, setKnownAltitudeKm] = useState<number | null>(null);
+  useEffect(() => {
+    if (knownAltitudeKm === null && current?.sataltitude) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setKnownAltitudeKm(current.sataltitude);
+    }
+  }, [current, knownAltitudeKm]);
+
+  // Stable for the component's lifetime until a live fix refines the
+  // altitude — selectedPass/location are Zustand-store values, unaffected
+  // by remounts.
   const trajectory = useMemo(
-    () => buildPassTrajectory(selectedPass, location),
-    [selectedPass, location],
+    () =>
+      buildPassTrajectory(
+        selectedPass,
+        location,
+        undefined,
+        knownAltitudeKm ?? undefined,
+      ),
+    [selectedPass, location, knownAltitudeKm],
   );
 
   // Create the map once on mount, tear it down on unmount. `location` is
@@ -176,19 +197,20 @@ function LiveMap({
     satMarkerEl.className =
       "w-3.5 h-3.5 rounded-full bg-aw-purple ring-2 ring-white shadow-md";
     satMarkerRef.current = new maplibregl.Marker({ element: satMarkerEl })
-      .setLngLat([trajectory[0].lng, trajectory[0].lat])
+      .setLngLat([location.lng, location.lat])
       .addTo(map);
 
+    // Only the base source/layer are set up here, empty — the trajectory
+    // itself is applied by the effect below (keyed on `trajectory` and
+    // `mapLoaded`), since a stale closure over `trajectory` here would
+    // otherwise miss a later altitude-driven refinement.
     map.on("load", () => {
       map.addSource("ground-track", {
         type: "geojson",
         data: {
           type: "Feature",
           properties: {},
-          geometry: {
-            type: "LineString",
-            coordinates: trajectory.map((p) => [p.lng, p.lat]),
-          },
+          geometry: { type: "LineString", coordinates: [] },
         },
       });
       map.addLayer({
@@ -201,29 +223,7 @@ function LiveMap({
           "line-dasharray": [1, 1.5],
         },
       });
-
-      const peakIndex = (trajectory.length - 1) / 2;
-      upsertPointMarker(
-        riseMarkerRef,
-        map,
-        trajectory[0],
-        "Start Pass",
-        "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-teal",
-      );
-      upsertPointMarker(
-        peakMarkerRef,
-        map,
-        trajectory[peakIndex],
-        "Max El",
-        "w-3 h-3 rounded-full bg-aw-purple border-2 border-white shadow-md",
-      );
-      upsertPointMarker(
-        setMarkerRef,
-        map,
-        trajectory[trajectory.length - 1],
-        "End Pass",
-        "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-amber",
-      );
+      setMapLoaded(true);
     });
 
     // MapLibre measures its container's size once, synchronously, right
@@ -247,17 +247,52 @@ function LiveMap({
       setMarkerRef.current = null;
       peakMarkerRef.current = null;
     };
-    // trajectory is intentionally omitted: this effect only ever needs the
-    // value trajectory holds at mount time (to seed the live marker/line
-    // before "load" fires), and re-running it on trajectory changes would
-    // destroy and recreate the whole map for no reason — trajectory only
-    // actually changes when selectedPass/location do, which already tears
-    // this component down and remounts it with a fresh LiveMap instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Only the live dot moves — the static path/markers are set once above
-  // and never touched again.
+  // Applies whichever trajectory is current to the map — runs once the map
+  // has loaded, and again (repositioning, not duplicating, the same
+  // markers) if the trajectory is later refined with a real altitude.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    const source = map.getSource("ground-track") as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    source?.setData({
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: trajectory.line.map((p) => [p.lng, p.lat]),
+      },
+    });
+
+    upsertPointMarker(
+      riseMarkerRef,
+      map,
+      trajectory.start,
+      "Start Pass",
+      "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-teal",
+    );
+    upsertPointMarker(
+      peakMarkerRef,
+      map,
+      trajectory.peak,
+      "Max El",
+      "w-3 h-3 rounded-full bg-aw-purple border-2 border-white shadow-md",
+    );
+    upsertPointMarker(
+      setMarkerRef,
+      map,
+      trajectory.end,
+      "End Pass",
+      "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-amber",
+    );
+  }, [trajectory, mapLoaded]);
+
+  // Only the live dot moves — the static path/markers are handled above.
   useEffect(() => {
     const marker = satMarkerRef.current;
     if (!marker || !current) return;

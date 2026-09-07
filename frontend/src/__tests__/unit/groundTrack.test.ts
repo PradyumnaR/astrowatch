@@ -20,6 +20,19 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
   return Math.sqrt(dLat * dLat + dLng * dLng) * 111;
 }
 
+// Local-plane bearing between two nearby points — good enough over the
+// short distances in these tests, just needed to detect a sharp turn.
+function bearingDeg(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+) {
+  return Math.atan2(b.lng - a.lng, b.lat - a.lat) * (180 / Math.PI);
+}
+
+function angleDiff(a: number, b: number) {
+  return Math.abs(((b - a + 540) % 360) - 180);
+}
+
 describe("lookAngleToGroundPoint", () => {
   it("places a straight-up satellite essentially at the observer's own position", () => {
     const point = lookAngleToGroundPoint(location.lat, location.lng, 200, 90);
@@ -72,23 +85,58 @@ describe("buildPassTrajectory", () => {
     duration: 120,
   };
 
-  it("returns 2*samplesPerSegment + 1 points", () => {
-    const trajectory = buildPassTrajectory(pass, location, 10);
-    expect(trajectory).toHaveLength(21);
+  it("returns totalSamples + 1 line points", () => {
+    const { line } = buildPassTrajectory(pass, location, 10);
+    expect(line).toHaveLength(11);
   });
 
-  it("starts at the pass's rise angle, peaks at max elevation, ends at the set angle", () => {
-    const samples = 10;
-    const trajectory = buildPassTrajectory(pass, location, samples);
+  it("start/peak/end match the pass's own known angles exactly", () => {
+    const trajectory = buildPassTrajectory(pass, location, 10);
 
-    expect(trajectory[0]).toEqual(
+    expect(trajectory.start).toEqual(
       lookAngleToGroundPoint(location.lat, location.lng, pass.startAz, pass.startEl),
     );
-    expect(trajectory[samples]).toEqual(
+    expect(trajectory.peak).toEqual(
       lookAngleToGroundPoint(location.lat, location.lng, pass.maxAz, pass.maxEl),
     );
-    expect(trajectory[trajectory.length - 1]).toEqual(
+    expect(trajectory.end).toEqual(
       lookAngleToGroundPoint(location.lat, location.lng, pass.endAz, 0),
+    );
+    // the fit passes through its nodes exactly, so the line's own first
+    // and last samples (t=0 and t=1) match start/end too
+    expect(trajectory.line[0]).toEqual(trajectory.start);
+    expect(trajectory.line[trajectory.line.length - 1]).toEqual(
+      trajectory.end,
+    );
+  });
+
+  it("has no directional kink at the peak (a smooth curve, not two pasted linear segments)", () => {
+    const { line } = buildPassTrajectory(pass, location, 48);
+
+    const bearings: number[] = [];
+    for (let i = 1; i < line.length; i++) {
+      bearings.push(bearingDeg(line[i - 1], line[i]));
+    }
+    const turns = bearings.slice(1).map((b, i) => angleDiff(bearings[i], b));
+
+    const sorted = [...turns].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const max = Math.max(...turns);
+
+    // A genuine kink (two independent linear segments meeting at the peak)
+    // produces one turn dramatically larger than the rest; a single smooth
+    // quadratic fit doesn't have such a singular outlier.
+    expect(max).toBeLessThan(median * 5 + 1);
+  });
+
+  it("threads a custom altitude through to every point", () => {
+    const near = buildPassTrajectory(pass, location, 10, 400);
+    const far = buildPassTrajectory(pass, location, 10, 2000);
+    expect(distanceKm(far.start, location)).toBeGreaterThan(
+      distanceKm(near.start, location),
+    );
+    expect(distanceKm(far.peak, location)).toBeGreaterThan(
+      distanceKm(near.peak, location),
     );
   });
 
