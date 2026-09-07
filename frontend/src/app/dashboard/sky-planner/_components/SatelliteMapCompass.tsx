@@ -1,18 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Compass, X } from "lucide-react";
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
-import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
-import { azToCompass } from "@/lib/compass";
 import {
-  buildPassTrajectory,
-  sampleTrajectoryPoint,
-  DEFAULT_SAT_ALTITUDE_KM,
-} from "@/lib/groundTrack";
+  estimatePosition,
+  useLiveSatelliteTracking,
+} from "@/hooks/useLiveSatelliteTracking";
+import { azToCompass } from "@/lib/compass";
 import CompassArrow from "./CompassArrow";
 import type { Location, SatellitePass, SatellitePosition } from "@/types";
 
@@ -40,13 +38,10 @@ function formatCountdown(totalSeconds: number): string {
 }
 
 // Fabricates a short "active right now" pass + a matching synthetic
-// position track, entirely client-side — used only by the "Preview map"
-// button so the map/compass/trajectory can be exercised on demand without
-// any real pass and, crucially, without a single call to /api/positions
-// (unlike the old real-data "simulate" button this replaces).
-//
-// Exported only so tests can verify the fabricated positions line up with
-// the trajectory drawn from this same pass — nothing else should import it.
+// position track sweeping near the observer, entirely client-side — used
+// only by the "Preview map" button so the map/compass can be exercised on
+// demand without any real pass and, crucially, without a single call to
+// /api/positions.
 export function buildPreviewScenario(location: Location): {
   pass: SatellitePass;
   positions: SatellitePosition[];
@@ -75,25 +70,16 @@ export function buildPreviewScenario(location: Location): {
     duration: endUTC - startUTC,
   };
 
-  // Sampled off the exact same az/el curve that draws the static trajectory
-  // line (see sampleTrajectoryPoint) — not an unrelated fabricated sweep —
-  // so the "live" dot always sits on the line, and at the same fixed
-  // altitude the line itself defaults to, so the one-time altitude
-  // refinement in LiveMap is a no-op here (no visible jump).
   const positions: SatellitePosition[] = [];
   for (let t = startUTC; t <= endUTC; t++) {
-    const sample = sampleTrajectoryPoint(
-      pass,
-      location,
-      t,
-      DEFAULT_SAT_ALTITUDE_KM,
-    );
+    const frac = (t - startUTC) / (endUTC - startUTC);
     positions.push({
-      azimuth: sample.azimuth,
-      elevation: sample.elevation,
-      satlatitude: sample.lat,
-      satlongitude: sample.lng,
-      sataltitude: DEFAULT_SAT_ALTITUDE_KM,
+      ...estimatePosition(pass, t),
+      // sweeps a few degrees across the observer's location — not real
+      // orbital geometry, just enough to see the map and marker move.
+      satlatitude: location.lat + (frac - 0.5) * 4,
+      satlongitude: location.lng + (frac - 0.5) * 6,
+      sataltitude: 400,
       timestamp: t,
     });
   }
@@ -101,82 +87,22 @@ export function buildPreviewScenario(location: Location): {
   return { pass, positions };
 }
 
-// Creates a small marker the first time it's called for a given ref, then
-// just repositions it on every subsequent call — avoids piling up duplicate
-// DOM markers if this is ever called more than once for the same ref.
-function upsertPointMarker(
-  ref: { current: maplibregl.Marker | null },
-  map: maplibregl.Map,
-  point: { lat: number; lng: number },
-  label: string,
-  dotClassName: string,
-) {
-  const lngLat: [number, number] = [point.lng, point.lat];
-  if (ref.current) {
-    ref.current.setLngLat(lngLat);
-    return;
-  }
-  const el = document.createElement("div");
-  el.className = dotClassName;
-  ref.current = new maplibregl.Marker({ element: el })
-    .setLngLat(lngLat)
-    .setPopup(new maplibregl.Popup({ closeButton: false }).setText(label))
-    .addTo(map);
-}
-
-// Ground-track map for the active pass: observer marker, live satellite
-// marker, and the full rise → max elevation → set trajectory. The
-// trajectory is computed once from the pass's own known az/el shape (see
-// buildPassTrajectory) rather than from live position samples, so it can
-// never change or shrink across a remount (tab switch, page navigation,
-// refresh) — only the live marker moves, driven by `current`. Only
-// mounted while a pass is active, so the (relatively expensive) map
-// init/teardown is tied to this component's own mount/unmount rather than
-// running on every render.
+// Live-tracking map: just the observer and the satellite's live position,
+// as reported by /api/positions (`current`) — no assumed trajectory, since
+// that's the only place we actually have real coordinates. Only mounted
+// while a pass is active, so the (relatively expensive) map init/teardown
+// is tied to this component's own mount/unmount rather than running on
+// every render.
 function LiveMap({
   location,
-  selectedPass,
   current,
 }: {
   location: Location;
-  selectedPass: SatellitePass;
   current: SatellitePosition | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
   const satMarkerRef = useRef<maplibregl.Marker | null>(null);
-  const riseMarkerRef = useRef<maplibregl.Marker | null>(null);
-  const setMarkerRef = useRef<maplibregl.Marker | null>(null);
-  const peakMarkerRef = useRef<maplibregl.Marker | null>(null);
   const [mapFailed, setMapFailed] = useState(false);
-  const [mapLoaded, setMapLoaded] = useState(false);
-
-  // Captured once from the first live position fix and never overwritten
-  // again — a satellite's altitude barely changes across one short pass,
-  // so this is a one-time refinement, not a reintroduction of the earlier
-  // bug (which was about *accumulating, losable* samples, not a single
-  // stable scalar re-derived identically on every mount).
-  const [knownAltitudeKm, setKnownAltitudeKm] = useState<number | null>(null);
-  useEffect(() => {
-    if (knownAltitudeKm === null && current?.sataltitude) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setKnownAltitudeKm(current.sataltitude);
-    }
-  }, [current, knownAltitudeKm]);
-
-  // Stable for the component's lifetime until a live fix refines the
-  // altitude — selectedPass/location are Zustand-store values, unaffected
-  // by remounts.
-  const trajectory = useMemo(
-    () =>
-      buildPassTrajectory(
-        selectedPass,
-        location,
-        undefined,
-        knownAltitudeKm ?? undefined,
-      ),
-    [selectedPass, location, knownAltitudeKm],
-  );
 
   // Create the map once on mount, tear it down on unmount. `location` is
   // only read here for the initial center/observer marker — a pass is
@@ -191,7 +117,6 @@ function LiveMap({
       zoom: 9,
       attributionControl: false,
     });
-    mapRef.current = map;
 
     // Surface a style/tile/network failure instead of leaving the map
     // silently blank — this fires for e.g. an unreachable basemap URL.
@@ -212,32 +137,6 @@ function LiveMap({
       .setLngLat([location.lng, location.lat])
       .addTo(map);
 
-    // Only the base source/layer are set up here, empty — the trajectory
-    // itself is applied by the effect below (keyed on `trajectory` and
-    // `mapLoaded`), since a stale closure over `trajectory` here would
-    // otherwise miss a later altitude-driven refinement.
-    map.on("load", () => {
-      map.addSource("ground-track", {
-        type: "geojson",
-        data: {
-          type: "Feature",
-          properties: {},
-          geometry: { type: "LineString", coordinates: [] },
-        },
-      });
-      map.addLayer({
-        id: "ground-track-line",
-        type: "line",
-        source: "ground-track",
-        paint: {
-          "line-color": "#7c6ff7",
-          "line-width": 2,
-          "line-dasharray": [1, 1.5],
-        },
-      });
-      setMapLoaded(true);
-    });
-
     // MapLibre measures its container's size once, synchronously, right
     // here at construction — if that measurement is stale (e.g. the
     // container's flex/absolute layout hasn't fully settled yet on this
@@ -253,58 +152,12 @@ function LiveMap({
     return () => {
       resizeObserver.disconnect();
       map.remove();
-      mapRef.current = null;
       satMarkerRef.current = null;
-      riseMarkerRef.current = null;
-      setMarkerRef.current = null;
-      peakMarkerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Applies whichever trajectory is current to the map — runs once the map
-  // has loaded, and again (repositioning, not duplicating, the same
-  // markers) if the trajectory is later refined with a real altitude.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoaded) return;
-
-    const source = map.getSource("ground-track") as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    source?.setData({
-      type: "Feature",
-      properties: {},
-      geometry: {
-        type: "LineString",
-        coordinates: trajectory.line.map((p) => [p.lng, p.lat]),
-      },
-    });
-
-    upsertPointMarker(
-      riseMarkerRef,
-      map,
-      trajectory.start,
-      "Start Pass",
-      "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-teal",
-    );
-    upsertPointMarker(
-      peakMarkerRef,
-      map,
-      trajectory.peak,
-      "Max El",
-      "w-3 h-3 rounded-full bg-aw-purple border-2 border-white shadow-md",
-    );
-    upsertPointMarker(
-      setMarkerRef,
-      map,
-      trajectory.end,
-      "End Pass",
-      "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-amber",
-    );
-  }, [trajectory, mapLoaded]);
-
-  // Only the live dot moves — the static path/markers are handled above.
+  // The live dot moves as new positions arrive from /api/positions.
   useEffect(() => {
     const marker = satMarkerRef.current;
     if (!marker || !current) return;
@@ -317,7 +170,7 @@ function LiveMap({
         ref={containerRef}
         className="absolute inset-0 h-full w-full"
         role="img"
-        aria-label="Map of your location and the satellite's live ground track"
+        aria-label="Map of your location and the satellite's live position"
       />
       {mapFailed && (
         <div className="absolute inset-0 flex items-center justify-center bg-aw-bg">
@@ -454,11 +307,7 @@ export default function SatelliteMapCompass() {
   return (
     <div className="relative w-full h-[340px] rounded-xl overflow-hidden border border-aw-border bg-aw-bg">
       {location ? (
-        <LiveMap
-          location={location}
-          selectedPass={effectivePass}
-          current={current}
-        />
+        <LiveMap location={location} current={current} />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center">
           <p className="text-aw-text-muted text-xs">

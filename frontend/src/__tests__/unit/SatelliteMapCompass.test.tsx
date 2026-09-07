@@ -6,54 +6,34 @@ import SatelliteMapCompass, {
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
 import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
-import {
-  buildPassTrajectory,
-  sampleTrajectoryPoint,
-  DEFAULT_SAT_ALTITUDE_KM,
-} from "@/lib/groundTrack";
 import type { Location, SatellitePass } from "@/types";
 
-// Exposed so tests can assert what the map was actually told to draw,
-// without reaching into the (mocked) maplibre-gl internals.
-const addSourceMock = vi.fn();
+// Exposed so tests can assert what markers/popups the map was actually told
+// to draw, without reaching into the (mocked) maplibre-gl internals.
+const setLngLatMock = vi.fn().mockReturnThis();
 const popupSetTextMock = vi.fn().mockReturnThis();
-const groundTrackSource = { setData: vi.fn() };
 
 // MapLibre needs a real WebGL canvas that jsdom can't provide. It's only
-// ever exercised once phase === "active" (LiveMap mounts), but these
+// ever exercised once phase === "active" (LiveMap mounts) — these
 // chainable-builder mocks let that mount happen harmlessly so the tests can
 // focus on this component's own render logic (permission gating, copy).
-// `on` invokes the "load" callback synchronously (real MapLibre does so
-// asynchronously) so the static trajectory/markers set up inside it are
-// actually exercised in tests.
 vi.mock("maplibre-gl", () => {
   class FakeMap {
-    on = vi.fn((event: string, cb: () => void) => {
-      if (event === "load") cb();
-    });
-    addSource = addSourceMock;
-    addLayer = vi.fn();
-    getSource = vi.fn(() => groundTrackSource);
+    on = vi.fn();
     remove = vi.fn();
-    isStyleLoaded = vi.fn(() => false);
-    fitBounds = vi.fn();
   }
   class FakeMarker {
-    setLngLat = vi.fn().mockReturnThis();
+    setLngLat = setLngLatMock;
     setPopup = vi.fn().mockReturnThis();
     addTo = vi.fn().mockReturnThis();
   }
   class FakePopup {
     setText = popupSetTextMock;
   }
-  class FakeLngLatBounds {
-    extend = vi.fn().mockReturnThis();
-  }
   return {
     Map: FakeMap,
     Marker: FakeMarker,
     Popup: FakePopup,
-    LngLatBounds: FakeLngLatBounds,
     setWorkerUrl: vi.fn(),
   };
 });
@@ -108,8 +88,7 @@ beforeEach(() => {
     heading: null,
     requestAccess: vi.fn(),
   });
-  groundTrackSource.setData.mockClear();
-  addSourceMock.mockClear();
+  setLngLatMock.mockClear();
   popupSetTextMock.mockClear();
 });
 
@@ -176,95 +155,31 @@ describe("SatelliteMapCompass", () => {
     ).toBeInTheDocument();
   });
 
-  it("draws the trajectory from the pass's own az/el geometry, independent of live data", () => {
-    const expectedCoordinates = buildPassTrajectory(pass, location).line.map(
-      (p) => [p.lng, p.lat],
-    );
-
-    // no live fix yet — the default-altitude trajectory should still draw
+  it("places the observer marker at the user's location, labeled You", () => {
     mockTracking({ phase: "active", current: null });
-    const { unmount } = render(<SatelliteMapCompass />);
-    expect(groundTrackSource.setData).toHaveBeenCalledWith(
-      expect.objectContaining({
-        geometry: { type: "LineString", coordinates: expectedCoordinates },
-      }),
-    );
-    unmount();
 
-    // Simulate a remount with a live sample far from the drawn path (as if
-    // real time had moved on) — the shape must be identical (same default
-    // altitude, since this sample's altitude equals it), since it was
-    // never derived from `current`'s lat/lng in the first place.
-    groundTrackSource.setData.mockClear();
-    mockTracking({
-      phase: "active",
-      current: {
-        azimuth: 999,
-        elevation: 999,
-        satlatitude: -60,
-        satlongitude: 170,
-        sataltitude: DEFAULT_SAT_ALTITUDE_KM,
-        timestamp: pass.maxUTC,
-      },
-    });
     render(<SatelliteMapCompass />);
-    expect(groundTrackSource.setData).toHaveBeenCalledWith(
-      expect.objectContaining({
-        geometry: { type: "LineString", coordinates: expectedCoordinates },
-      }),
-    );
+
+    expect(setLngLatMock).toHaveBeenCalledWith([location.lng, location.lat]);
+    expect(popupSetTextMock).toHaveBeenCalledWith("You");
   });
 
-  it("refines the trajectory once a live fix supplies a real altitude, without duplicating markers", () => {
-    mockTracking({ phase: "active", current: null });
-    const { rerender } = render(<SatelliteMapCompass />);
-
-    const initialCall = groundTrackSource.setData.mock.calls.length;
-    const initialMarkerCreations = popupSetTextMock.mock.calls.length;
-
-    // a live fix arrives with a notably different real altitude
+  it("moves the live satellite marker to each new /api/positions fix", () => {
     mockTracking({
       phase: "active",
       current: {
-        azimuth: pass.maxAz,
-        elevation: pass.maxEl,
+        azimuth: 270,
+        elevation: 60,
         satlatitude: 40,
         satlongitude: -100,
-        sataltitude: 535, // e.g. Hubble, vs. the 420km default
+        sataltitude: 408,
         timestamp: pass.maxUTC,
       },
     });
-    rerender(<SatelliteMapCompass />);
-
-    const expectedRefined = buildPassTrajectory(
-      pass,
-      location,
-      undefined,
-      535,
-    ).line.map((p) => [p.lng, p.lat]);
-
-    // re-drawn with the refined altitude...
-    expect(groundTrackSource.setData.mock.calls.length).toBeGreaterThan(
-      initialCall,
-    );
-    expect(groundTrackSource.setData).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        geometry: { type: "LineString", coordinates: expectedRefined },
-      }),
-    );
-    // ...by repositioning the same 3 markers, not creating new ones
-    expect(popupSetTextMock.mock.calls.length).toBe(initialMarkerCreations);
-  });
-
-  it("labels the map markers Start Pass / Max El / End Pass / You", () => {
-    mockTracking({ phase: "active" });
 
     render(<SatelliteMapCompass />);
 
-    const labels = popupSetTextMock.mock.calls.map((call) => call[0]);
-    expect(labels).toEqual(
-      expect.arrayContaining(["You", "Start Pass", "Max El", "End Pass"]),
-    );
+    expect(setLngLatMock).toHaveBeenCalledWith([-100, 40]);
   });
 
   it("keeps the Preview map button reachable even when a real pass is already selected", () => {
@@ -281,27 +196,19 @@ describe("SatelliteMapCompass", () => {
     ).toBeInTheDocument();
   });
 
-  it("builds preview positions that always sit on the pass's own trajectory curve", () => {
-    // This is the regression test for the bug where the preview's "live"
-    // dot was fabricated via an arbitrary lat/lng sweep unrelated to the
-    // trajectory line — here every sampled position must land exactly on
-    // sampleTrajectoryPoint's curve for the same pass/location/timestamp,
-    // which is the same curve buildPassTrajectory draws as the static line.
-    const { pass, positions } = buildPreviewScenario(location);
+  it("builds a preview scenario with positions spanning the fabricated pass", () => {
+    const { pass: previewPass, positions } = buildPreviewScenario(location);
 
     expect(positions.length).toBeGreaterThan(0);
+    expect(positions[0].timestamp).toBe(previewPass.startUTC);
+    expect(positions[positions.length - 1].timestamp).toBe(
+      previewPass.endUTC,
+    );
+    // sweeps a few degrees either side of the observer — not exact, just
+    // close enough to see the map and marker move during preview
     for (const position of positions) {
-      const expected = sampleTrajectoryPoint(
-        pass,
-        location,
-        position.timestamp,
-        DEFAULT_SAT_ALTITUDE_KM,
-      );
-      expect(position.satlatitude).toBeCloseTo(expected.lat, 9);
-      expect(position.satlongitude).toBeCloseTo(expected.lng, 9);
-      expect(position.azimuth).toBeCloseTo(expected.azimuth, 9);
-      expect(position.elevation).toBeCloseTo(expected.elevation, 9);
-      expect(position.sataltitude).toBe(DEFAULT_SAT_ALTITUDE_KM);
+      expect(Math.abs(position.satlatitude - location.lat)).toBeLessThan(3);
+      expect(Math.abs(position.satlongitude - location.lng)).toBeLessThan(4);
     }
   });
 
