@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Compass, X } from "lucide-react";
@@ -11,6 +11,7 @@ import {
   useLiveSatelliteTracking,
 } from "@/hooks/useLiveSatelliteTracking";
 import { azToCompass } from "@/lib/compass";
+import { buildPassTrajectory } from "@/lib/groundTrack";
 import CompassArrow from "./CompassArrow";
 import type { Location, SatellitePass, SatellitePosition } from "@/types";
 
@@ -35,18 +36,6 @@ function formatCountdown(totalSeconds: number): string {
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
-}
-
-function closestByTimestamp(
-  positions: SatellitePosition[],
-  target: number,
-): SatellitePosition | undefined {
-  return positions.reduce<SatellitePosition | undefined>((closest, p) => {
-    if (!closest) return p;
-    return Math.abs(p.timestamp - target) < Math.abs(closest.timestamp - target)
-      ? p
-      : closest;
-  }, undefined);
 }
 
 // Fabricates a short "active right now" pass + a matching synthetic
@@ -102,18 +91,15 @@ function buildPreviewScenario(location: Location): {
 
 // Creates a small marker the first time it's called for a given ref, then
 // just repositions it on every subsequent call — avoids piling up duplicate
-// DOM markers as this runs on every position update.
+// DOM markers if this is ever called more than once for the same ref.
 function upsertPointMarker(
   ref: { current: maplibregl.Marker | null },
   map: maplibregl.Map,
-  position: SatellitePosition,
+  point: { lat: number; lng: number },
   label: string,
   dotClassName: string,
 ) {
-  const lngLat: [number, number] = [
-    position.satlongitude,
-    position.satlatitude,
-  ];
+  const lngLat: [number, number] = [point.lng, point.lat];
   if (ref.current) {
     ref.current.setLngLat(lngLat);
     return;
@@ -127,19 +113,21 @@ function upsertPointMarker(
 }
 
 // Ground-track map for the active pass: observer marker, live satellite
-// marker, and the full rise → max elevation → set trajectory (not just the
-// trail behind the satellite). Only mounted while a pass is active, so the
-// (relatively expensive) map init/teardown is tied to this component's own
-// mount/unmount rather than running on every render.
+// marker, and the full rise → max elevation → set trajectory. The
+// trajectory is computed once from the pass's own known az/el shape (see
+// buildPassTrajectory) rather than from live position samples, so it can
+// never change or shrink across a remount (tab switch, page navigation,
+// refresh) — only the live marker moves, driven by `current`. Only
+// mounted while a pass is active, so the (relatively expensive) map
+// init/teardown is tied to this component's own mount/unmount rather than
+// running on every render.
 function LiveMap({
   location,
   selectedPass,
-  positions,
   current,
 }: {
   location: Location;
   selectedPass: SatellitePass;
-  positions: SatellitePosition[] | null;
   current: SatellitePosition | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -149,6 +137,13 @@ function LiveMap({
   const setMarkerRef = useRef<maplibregl.Marker | null>(null);
   const peakMarkerRef = useRef<maplibregl.Marker | null>(null);
   const [mapFailed, setMapFailed] = useState(false);
+
+  // Stable for the component's lifetime — selectedPass/location are
+  // Zustand-store values, unaffected by remounts.
+  const trajectory = useMemo(
+    () => buildPassTrajectory(selectedPass, location),
+    [selectedPass, location],
+  );
 
   // Create the map once on mount, tear it down on unmount. `location` is
   // only read here for the initial center/observer marker — a pass is
@@ -181,7 +176,7 @@ function LiveMap({
     satMarkerEl.className =
       "w-3.5 h-3.5 rounded-full bg-aw-purple ring-2 ring-white shadow-md";
     satMarkerRef.current = new maplibregl.Marker({ element: satMarkerEl })
-      .setLngLat([location.lng, location.lat])
+      .setLngLat([trajectory[0].lng, trajectory[0].lat])
       .addTo(map);
 
     map.on("load", () => {
@@ -190,7 +185,10 @@ function LiveMap({
         data: {
           type: "Feature",
           properties: {},
-          geometry: { type: "LineString", coordinates: [] },
+          geometry: {
+            type: "LineString",
+            coordinates: trajectory.map((p) => [p.lng, p.lat]),
+          },
         },
       });
       map.addLayer({
@@ -203,6 +201,29 @@ function LiveMap({
           "line-dasharray": [1, 1.5],
         },
       });
+
+      const peakIndex = (trajectory.length - 1) / 2;
+      upsertPointMarker(
+        riseMarkerRef,
+        map,
+        trajectory[0],
+        "Start Pass",
+        "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-teal",
+      );
+      upsertPointMarker(
+        peakMarkerRef,
+        map,
+        trajectory[peakIndex],
+        "Max El",
+        "w-3 h-3 rounded-full bg-aw-purple border-2 border-white shadow-md",
+      );
+      upsertPointMarker(
+        setMarkerRef,
+        map,
+        trajectory[trajectory.length - 1],
+        "End Pass",
+        "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-amber",
+      );
     });
 
     // MapLibre measures its container's size once, synchronously, right
@@ -226,69 +247,22 @@ function LiveMap({
       setMarkerRef.current = null;
       peakMarkerRef.current = null;
     };
+    // trajectory is intentionally omitted: this effect only ever needs the
+    // value trajectory holds at mount time (to seed the live marker/line
+    // before "load" fires), and re-running it on trajectory changes would
+    // destroy and recreate the whole map for no reason — trajectory only
+    // actually changes when selectedPass/location do, which already tears
+    // this component down and remounts it with a fresh LiveMap instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Move the satellite marker + (re)draw the full rise → set trajectory as
-  // new positions arrive, imperatively — never recreates the map or marker.
+  // Only the live dot moves — the static path/markers are set once above
+  // and never touched again.
   useEffect(() => {
-    const map = mapRef.current;
     const marker = satMarkerRef.current;
-    if (!map || !marker || !current) return;
-
+    if (!marker || !current) return;
     marker.setLngLat([current.satlongitude, current.satlatitude]);
-
-    // Trim to the pass's actual visible window — the fetched batch can
-    // include some samples just before rise or after set (N2YO's positions
-    // endpoint returns a fixed window from "now", not clipped to the pass),
-    // which are real orbit points but not part of "rise to fall".
-    const visible = (positions ?? []).filter(
-      (p) =>
-        p.timestamp >= selectedPass.startUTC &&
-        p.timestamp <= selectedPass.endUTC,
-    );
-
-    const source = map.getSource("ground-track") as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    if (source && visible.length) {
-      source.setData({
-        type: "Feature",
-        properties: {},
-        geometry: {
-          type: "LineString",
-          coordinates: visible.map((p) => [p.satlongitude, p.satlatitude]),
-        },
-      });
-    }
-
-    if (visible.length) {
-      upsertPointMarker(
-        riseMarkerRef,
-        map,
-        visible[0],
-        "Rise",
-        "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-teal",
-      );
-      upsertPointMarker(
-        setMarkerRef,
-        map,
-        visible[visible.length - 1],
-        "Set",
-        "w-2.5 h-2.5 rounded-full bg-aw-bg border-2 border-aw-amber",
-      );
-      const peak = closestByTimestamp(visible, selectedPass.maxUTC);
-      if (peak) {
-        upsertPointMarker(
-          peakMarkerRef,
-          map,
-          peak,
-          "Max elevation",
-          "w-3 h-3 rounded-full bg-aw-purple border-2 border-white shadow-md",
-        );
-      }
-    }
-  }, [current, positions, selectedPass]);
+  }, [current]);
 
   return (
     <>
@@ -341,7 +315,6 @@ export default function SatelliteMapCompass() {
   const {
     phase,
     nowSec,
-    positions,
     current,
     liveAz,
     liveEl,
@@ -437,7 +410,6 @@ export default function SatelliteMapCompass() {
         <LiveMap
           location={location}
           selectedPass={effectivePass}
-          positions={positions}
           current={current}
         />
       ) : (

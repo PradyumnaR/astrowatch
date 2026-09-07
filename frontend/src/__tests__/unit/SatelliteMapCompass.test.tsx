@@ -4,20 +4,28 @@ import SatelliteMapCompass from "@/app/dashboard/sky-planner/_components/Satelli
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
 import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
-import type { Location, SatellitePass, SatellitePosition } from "@/types";
+import { buildPassTrajectory } from "@/lib/groundTrack";
+import type { Location, SatellitePass } from "@/types";
 
-// Exposed so tests can assert what coordinates the ground-track source was
-// last given, without reaching into the (mocked) maplibre-gl internals.
+// Exposed so tests can assert what the map was actually told to draw,
+// without reaching into the (mocked) maplibre-gl internals.
+const addSourceMock = vi.fn();
+const popupSetTextMock = vi.fn().mockReturnThis();
 const groundTrackSource = { setData: vi.fn() };
 
 // MapLibre needs a real WebGL canvas that jsdom can't provide. It's only
 // ever exercised once phase === "active" (LiveMap mounts), but these
 // chainable-builder mocks let that mount happen harmlessly so the tests can
 // focus on this component's own render logic (permission gating, copy).
+// `on` invokes the "load" callback synchronously (real MapLibre does so
+// asynchronously) so the static trajectory/markers set up inside it are
+// actually exercised in tests.
 vi.mock("maplibre-gl", () => {
   class FakeMap {
-    on = vi.fn();
-    addSource = vi.fn();
+    on = vi.fn((event: string, cb: () => void) => {
+      if (event === "load") cb();
+    });
+    addSource = addSourceMock;
     addLayer = vi.fn();
     getSource = vi.fn(() => groundTrackSource);
     remove = vi.fn();
@@ -30,7 +38,7 @@ vi.mock("maplibre-gl", () => {
     addTo = vi.fn().mockReturnThis();
   }
   class FakePopup {
-    setText = vi.fn().mockReturnThis();
+    setText = popupSetTextMock;
   }
   class FakeLngLatBounds {
     extend = vi.fn().mockReturnThis();
@@ -95,6 +103,8 @@ beforeEach(() => {
     requestAccess: vi.fn(),
   });
   groundTrackSource.setData.mockClear();
+  addSourceMock.mockClear();
+  popupSetTextMock.mockClear();
 });
 
 describe("SatelliteMapCompass", () => {
@@ -160,35 +170,57 @@ describe("SatelliteMapCompass", () => {
     ).toBeInTheDocument();
   });
 
-  it("draws the full rise-to-set trajectory, not just the elapsed trail", () => {
-    // One sample before rise, one after set — both real orbit points N2YO
-    // can include in the batch, but outside what "rise to fall" means here
-    // — plus the visible arc itself. `current` sits partway through, so a
-    // trail-only filter would wrongly stop the line there.
-    const positions: SatellitePosition[] = [
-      { azimuth: 190, elevation: -2, satlatitude: 10, satlongitude: 10, sataltitude: 400, timestamp: pass.startUTC - 10 },
-      { azimuth: 200, elevation: 10, satlatitude: 20, satlongitude: 20, sataltitude: 400, timestamp: pass.startUTC },
-      { azimuth: 270, elevation: 60, satlatitude: 30, satlongitude: 30, sataltitude: 400, timestamp: pass.maxUTC },
-      { azimuth: 10, elevation: 10, satlatitude: 40, satlongitude: 40, sataltitude: 400, timestamp: pass.endUTC },
-      { azimuth: 5, elevation: -3, satlatitude: 50, satlongitude: 50, sataltitude: 400, timestamp: pass.endUTC + 10 },
-    ];
-    const current = positions[1]; // partway through the visible arc
+  it("draws the trajectory from the pass's own az/el geometry, independent of live data", () => {
+    const expectedCoordinates = buildPassTrajectory(pass, location).map(
+      (p) => [p.lng, p.lat],
+    );
 
-    mockTracking({ phase: "active", positions, current });
+    mockTracking({ phase: "active", current: null });
+    const { unmount } = render(<SatelliteMapCompass />);
+    expect(addSourceMock).toHaveBeenCalledWith(
+      "ground-track",
+      expect.objectContaining({
+        data: expect.objectContaining({
+          geometry: { type: "LineString", coordinates: expectedCoordinates },
+        }),
+      }),
+    );
+    unmount();
+
+    // Simulate a remount with a live sample far from the drawn path (as if
+    // real time had moved on) — the trajectory must be identical, since it
+    // was never derived from `current` in the first place.
+    addSourceMock.mockClear();
+    mockTracking({
+      phase: "active",
+      current: {
+        azimuth: 999,
+        elevation: 999,
+        satlatitude: -60,
+        satlongitude: 170,
+        sataltitude: 400,
+        timestamp: pass.maxUTC,
+      },
+    });
+    render(<SatelliteMapCompass />);
+    expect(addSourceMock).toHaveBeenCalledWith(
+      "ground-track",
+      expect.objectContaining({
+        data: expect.objectContaining({
+          geometry: { type: "LineString", coordinates: expectedCoordinates },
+        }),
+      }),
+    );
+  });
+
+  it("labels the map markers Start Pass / Max El / End Pass / You", () => {
+    mockTracking({ phase: "active" });
 
     render(<SatelliteMapCompass />);
 
-    expect(groundTrackSource.setData).toHaveBeenCalledWith(
-      expect.objectContaining({
-        geometry: {
-          type: "LineString",
-          coordinates: [
-            [20, 20],
-            [30, 30],
-            [40, 40],
-          ],
-        },
-      }),
+    const labels = popupSetTextMock.mock.calls.map((call) => call[0]);
+    expect(labels).toEqual(
+      expect.arrayContaining(["You", "Start Pass", "Max El", "End Pass"]),
     );
   });
 
