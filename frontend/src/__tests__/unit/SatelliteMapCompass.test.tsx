@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import SatelliteMapCompass from "@/app/dashboard/sky-planner/_components/SatelliteMapCompass";
+import SatelliteMapCompass, {
+  buildPreviewScenario,
+} from "@/app/dashboard/sky-planner/_components/SatelliteMapCompass";
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
 import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
 import {
   buildPassTrajectory,
+  sampleTrajectoryPoint,
   DEFAULT_SAT_ALTITUDE_KM,
 } from "@/lib/groundTrack";
 import type { Location, SatellitePass } from "@/types";
@@ -274,8 +277,32 @@ describe("SatelliteMapCompass", () => {
     render(<SatelliteMapCompass />);
 
     expect(
-      screen.getByRole("button", { name: /preview map \(test\)/i }),
+      screen.getByRole("button", { name: /preview map/i }),
     ).toBeInTheDocument();
+  });
+
+  it("builds preview positions that always sit on the pass's own trajectory curve", () => {
+    // This is the regression test for the bug where the preview's "live"
+    // dot was fabricated via an arbitrary lat/lng sweep unrelated to the
+    // trajectory line — here every sampled position must land exactly on
+    // sampleTrajectoryPoint's curve for the same pass/location/timestamp,
+    // which is the same curve buildPassTrajectory draws as the static line.
+    const { pass, positions } = buildPreviewScenario(location);
+
+    expect(positions.length).toBeGreaterThan(0);
+    for (const position of positions) {
+      const expected = sampleTrajectoryPoint(
+        pass,
+        location,
+        position.timestamp,
+        DEFAULT_SAT_ALTITUDE_KM,
+      );
+      expect(position.satlatitude).toBeCloseTo(expected.lat, 9);
+      expect(position.satlongitude).toBeCloseTo(expected.lng, 9);
+      expect(position.azimuth).toBeCloseTo(expected.azimuth, 9);
+      expect(position.elevation).toBeCloseTo(expected.elevation, 9);
+      expect(position.sataltitude).toBe(DEFAULT_SAT_ALTITUDE_KM);
+    }
   });
 
   it("falls back to numeric az/el when compass permission is denied", () => {

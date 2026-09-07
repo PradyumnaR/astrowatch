@@ -116,6 +116,71 @@ function quadraticThroughPoints(
   return v0 * l0 + v1 * l1 + v2 * l2;
 }
 
+// Shared per-pass setup for the quadratic fits below — the peak's real
+// relative timing plus the (circularly-unwrapped) azimuth triple — factored
+// out so buildPassTrajectory's sampled line and sampleTrajectoryPoint's
+// single-instant lookup are guaranteed to evaluate the exact same curve.
+function fitPassAngles(pass: SatellitePass): {
+  tPeak: number;
+  az0: number;
+  az1: number;
+  az2: number;
+  startEl: number;
+  maxEl: number;
+} {
+  const { startUTC, maxUTC, endUTC, startAz, maxAz, endAz, startEl, maxEl } =
+    pass;
+  const duration = Math.max(endUTC - startUTC, 1);
+  const tPeak = Math.min(
+    Math.max((maxUTC - startUTC) / duration, T_EPSILON),
+    1 - T_EPSILON,
+  );
+  const [az0, az1, az2] = unwrapAngleSequence(startAz, maxAz, endAz);
+  return { tPeak, az0, az1, az2, startEl, maxEl };
+}
+
+// Evaluates the fitted azimuth/elevation curve at time fraction `t` (0 =
+// start, 1 = end), normalizing azimuth back into [0, 360) and clamping
+// elevation to never dip below the horizon between nodes.
+function angleAtFraction(
+  fit: ReturnType<typeof fitPassAngles>,
+  t: number,
+): { az: number; el: number } {
+  const az = quadraticThroughPoints(0, fit.az0, fit.tPeak, fit.az1, 1, fit.az2, t);
+  const el = quadraticThroughPoints(0, fit.startEl, fit.tPeak, fit.maxEl, 1, 0, t);
+  return { az: ((az % 360) + 360) % 360, el: Math.max(el, 0) };
+}
+
+/**
+ * Samples the pass's ground-track curve (see buildPassTrajectory) at a
+ * single instant in time, returning both the ground point and the az/el
+ * used to place it. Shares its fit with buildPassTrajectory's `line`, so a
+ * position sampled here always sits exactly on that line — useful for
+ * anything that needs one live-looking point off the same stable curve
+ * (e.g. the "Preview map" button's fabricated satellite position) without
+ * pulling in a real, separately-sourced live fix.
+ *
+ * `utcSeconds` is clamped into the pass's `[startUTC, endUTC]` span.
+ */
+export function sampleTrajectoryPoint(
+  pass: SatellitePass,
+  location: Location,
+  utcSeconds: number,
+  altitudeKm: number = DEFAULT_SAT_ALTITUDE_KM,
+): { lat: number; lng: number; azimuth: number; elevation: number } {
+  const duration = Math.max(pass.endUTC - pass.startUTC, 1);
+  const t = Math.min(Math.max((utcSeconds - pass.startUTC) / duration, 0), 1);
+  const { az, el } = angleAtFraction(fitPassAngles(pass), t);
+  const { lat, lng } = lookAngleToGroundPoint(
+    location.lat,
+    location.lng,
+    az,
+    el,
+    altitudeKm,
+  );
+  return { lat, lng, azimuth: az, elevation: el };
+}
+
 /**
  * Builds the pass's ground-track trajectory purely from its own known
  * angular shape (startAz/startEl → maxAz/maxEl → endAz/~0°) plus the
@@ -147,15 +212,8 @@ export function buildPassTrajectory(
   peak: { lat: number; lng: number };
   end: { lat: number; lng: number };
 } {
-  const { startUTC, maxUTC, endUTC, startAz, maxAz, endAz, startEl, maxEl } =
-    pass;
-  const duration = Math.max(endUTC - startUTC, 1);
-  const tPeak = Math.min(
-    Math.max((maxUTC - startUTC) / duration, T_EPSILON),
-    1 - T_EPSILON,
-  );
-
-  const [az0, az1, az2] = unwrapAngleSequence(startAz, maxAz, endAz);
+  const { startAz, maxAz, endAz, startEl, maxEl } = pass;
+  const fit = fitPassAngles(pass);
   const toPoint = (az: number, el: number) =>
     lookAngleToGroundPoint(
       location.lat,
@@ -167,9 +225,7 @@ export function buildPassTrajectory(
 
   const line: { lat: number; lng: number }[] = [];
   for (let i = 0; i <= totalSamples; i++) {
-    const t = i / totalSamples;
-    const az = quadraticThroughPoints(0, az0, tPeak, az1, 1, az2, t);
-    const el = quadraticThroughPoints(0, startEl, tPeak, maxEl, 1, 0, t);
+    const { az, el } = angleAtFraction(fit, i / totalSamples);
     line.push(toPoint(az, el));
   }
 

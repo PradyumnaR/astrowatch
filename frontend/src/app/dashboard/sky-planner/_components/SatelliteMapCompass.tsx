@@ -6,12 +6,13 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { Compass, X } from "lucide-react";
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
-import {
-  estimatePosition,
-  useLiveSatelliteTracking,
-} from "@/hooks/useLiveSatelliteTracking";
+import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
 import { azToCompass } from "@/lib/compass";
-import { buildPassTrajectory } from "@/lib/groundTrack";
+import {
+  buildPassTrajectory,
+  sampleTrajectoryPoint,
+  DEFAULT_SAT_ALTITUDE_KM,
+} from "@/lib/groundTrack";
 import CompassArrow from "./CompassArrow";
 import type { Location, SatellitePass, SatellitePosition } from "@/types";
 
@@ -43,7 +44,10 @@ function formatCountdown(totalSeconds: number): string {
 // button so the map/compass/trajectory can be exercised on demand without
 // any real pass and, crucially, without a single call to /api/positions
 // (unlike the old real-data "simulate" button this replaces).
-function buildPreviewScenario(location: Location): {
+//
+// Exported only so tests can verify the fabricated positions line up with
+// the trajectory drawn from this same pass — nothing else should import it.
+export function buildPreviewScenario(location: Location): {
   pass: SatellitePass;
   positions: SatellitePosition[];
 } {
@@ -71,17 +75,25 @@ function buildPreviewScenario(location: Location): {
     duration: endUTC - startUTC,
   };
 
+  // Sampled off the exact same az/el curve that draws the static trajectory
+  // line (see sampleTrajectoryPoint) — not an unrelated fabricated sweep —
+  // so the "live" dot always sits on the line, and at the same fixed
+  // altitude the line itself defaults to, so the one-time altitude
+  // refinement in LiveMap is a no-op here (no visible jump).
   const positions: SatellitePosition[] = [];
   for (let t = startUTC; t <= endUTC; t++) {
-    const frac = (t - startUTC) / (endUTC - startUTC);
+    const sample = sampleTrajectoryPoint(
+      pass,
+      location,
+      t,
+      DEFAULT_SAT_ALTITUDE_KM,
+    );
     positions.push({
-      ...estimatePosition(pass, t),
-      // sweeps a few degrees across the observer's location — not real
-      // orbital geometry, just enough to see the map, marker, and
-      // trajectory line move.
-      satlatitude: location.lat + (frac - 0.5) * 4,
-      satlongitude: location.lng + (frac - 0.5) * 6,
-      sataltitude: 400,
+      azimuth: sample.azimuth,
+      elevation: sample.elevation,
+      satlatitude: sample.lat,
+      satlongitude: sample.lng,
+      sataltitude: DEFAULT_SAT_ALTITUDE_KM,
       timestamp: t,
     });
   }

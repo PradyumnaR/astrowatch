@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   lookAngleToGroundPoint,
   buildPassTrajectory,
+  sampleTrajectoryPoint,
   DEFAULT_SAT_ALTITUDE_KM,
 } from "@/lib/groundTrack";
 import type { Location, SatellitePass } from "@/types";
@@ -144,5 +145,78 @@ describe("buildPassTrajectory", () => {
     const a = buildPassTrajectory(pass, location);
     const b = buildPassTrajectory(pass, location);
     expect(a).toEqual(b);
+  });
+});
+
+describe("sampleTrajectoryPoint", () => {
+  const pass: SatellitePass = {
+    satid: 25544,
+    satname: "ISS",
+    startAz: 200,
+    startAzCompass: "SSW",
+    startEl: 10,
+    startUTC: 1_700_000_300,
+    maxAz: 270,
+    maxEl: 60,
+    maxUTC: 1_700_000_360,
+    endAz: 10,
+    endUTC: 1_700_000_420,
+    mag: -2,
+    duration: 120,
+  };
+
+  it("matches the trajectory's own start/peak/end at those exact timestamps", () => {
+    const trajectory = buildPassTrajectory(pass, location);
+
+    const start = sampleTrajectoryPoint(pass, location, pass.startUTC);
+    expect(start.lat).toBeCloseTo(trajectory.start.lat, 9);
+    expect(start.lng).toBeCloseTo(trajectory.start.lng, 9);
+    expect(start.azimuth).toBeCloseTo(pass.startAz, 6);
+    expect(start.elevation).toBeCloseTo(pass.startEl, 6);
+
+    const peak = sampleTrajectoryPoint(pass, location, pass.maxUTC);
+    expect(peak.lat).toBeCloseTo(trajectory.peak.lat, 9);
+    expect(peak.lng).toBeCloseTo(trajectory.peak.lng, 9);
+    expect(peak.azimuth).toBeCloseTo(pass.maxAz, 6);
+    expect(peak.elevation).toBeCloseTo(pass.maxEl, 6);
+
+    const end = sampleTrajectoryPoint(pass, location, pass.endUTC);
+    expect(end.lat).toBeCloseTo(trajectory.end.lat, 9);
+    expect(end.lng).toBeCloseTo(trajectory.end.lng, 9);
+    expect(end.azimuth).toBeCloseTo(pass.endAz, 6);
+    expect(end.elevation).toBeCloseTo(0, 6);
+  });
+
+  it("lands on the same curve buildPassTrajectory's line samples, at the same time fraction", () => {
+    const totalSamples = 10;
+    const { line } = buildPassTrajectory(pass, location, totalSamples);
+    const duration = pass.endUTC - pass.startUTC;
+
+    for (let i = 0; i <= totalSamples; i++) {
+      const utc = pass.startUTC + (duration * i) / totalSamples;
+      const sample = sampleTrajectoryPoint(pass, location, utc);
+      expect(sample.lat).toBeCloseTo(line[i].lat, 9);
+      expect(sample.lng).toBeCloseTo(line[i].lng, 9);
+    }
+  });
+
+  it("clamps timestamps outside the pass's own span", () => {
+    const trajectory = buildPassTrajectory(pass, location);
+
+    const before = sampleTrajectoryPoint(pass, location, pass.startUTC - 999);
+    expect(before.lat).toBeCloseTo(trajectory.start.lat, 9);
+    expect(before.lng).toBeCloseTo(trajectory.start.lng, 9);
+
+    const after = sampleTrajectoryPoint(pass, location, pass.endUTC + 999);
+    expect(after.lat).toBeCloseTo(trajectory.end.lat, 9);
+    expect(after.lng).toBeCloseTo(trajectory.end.lng, 9);
+  });
+
+  it("threads a custom altitude through", () => {
+    const near = sampleTrajectoryPoint(pass, location, pass.maxUTC, 400);
+    const far = sampleTrajectoryPoint(pass, location, pass.maxUTC, 2000);
+    expect(distanceKm(far, location)).toBeGreaterThan(
+      distanceKm(near, location),
+    );
   });
 });
