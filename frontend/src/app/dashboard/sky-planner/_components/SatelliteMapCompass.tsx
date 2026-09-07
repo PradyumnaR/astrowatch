@@ -370,10 +370,10 @@ export default function SatelliteMapCompass() {
       onClick={() =>
         setPreview(isPreviewing ? null : buildPreviewScenario(location))
       }
-      className="cursor-pointer text-[11px] text-aw-text-muted hover:text-aw-purple underline decoration-dotted"
+      className="flex items-center cursor-pointer text-[11px] text-aw-text-muted hover:text-aw-purple underline decoration-dotted"
       title="Shows the map + compass with synthetic data — no real pass or API calls involved."
     >
-      {isPreviewing ? "Exit preview" : "Preview map (test)"}
+      {isPreviewing ? "Exit preview" : "Preview map"}
     </button>
   ) : null;
 
