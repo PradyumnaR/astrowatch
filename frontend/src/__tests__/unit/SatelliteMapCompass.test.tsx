@@ -1,45 +1,40 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import SatelliteMapCompass from "@/app/dashboard/sky-planner/_components/SatelliteMapCompass";
+import { render, screen, fireEvent } from "@testing-library/react";
+import SatelliteMapCompass, {
+  buildPreviewScenario,
+} from "@/app/dashboard/sky-planner/_components/SatelliteMapCompass";
 import { useAstroStore } from "@/stores/astrowatch";
 import { useDeviceOrientation } from "@/hooks/useDeviceOrientation";
 import { useLiveSatelliteTracking } from "@/hooks/useLiveSatelliteTracking";
-import type { Location, SatellitePass, SatellitePosition } from "@/types";
+import type { Location, SatellitePass } from "@/types";
 
-// Exposed so tests can assert what coordinates the ground-track source was
-// last given, without reaching into the (mocked) maplibre-gl internals.
-const groundTrackSource = { setData: vi.fn() };
+// Exposed so tests can assert what markers/popups the map was actually told
+// to draw, without reaching into the (mocked) maplibre-gl internals.
+const setLngLatMock = vi.fn().mockReturnThis();
+const popupSetTextMock = vi.fn().mockReturnThis();
 
 // MapLibre needs a real WebGL canvas that jsdom can't provide. It's only
-// ever exercised once phase === "active" (LiveMap mounts), but these
+// ever exercised once phase === "active" (LiveMap mounts) — these
 // chainable-builder mocks let that mount happen harmlessly so the tests can
 // focus on this component's own render logic (permission gating, copy).
 vi.mock("maplibre-gl", () => {
   class FakeMap {
     on = vi.fn();
-    addSource = vi.fn();
-    addLayer = vi.fn();
-    getSource = vi.fn(() => groundTrackSource);
     remove = vi.fn();
-    isStyleLoaded = vi.fn(() => false);
-    fitBounds = vi.fn();
   }
   class FakeMarker {
-    setLngLat = vi.fn().mockReturnThis();
+    setLngLat = setLngLatMock;
     setPopup = vi.fn().mockReturnThis();
     addTo = vi.fn().mockReturnThis();
   }
   class FakePopup {
-    setText = vi.fn().mockReturnThis();
-  }
-  class FakeLngLatBounds {
-    extend = vi.fn().mockReturnThis();
+    setText = popupSetTextMock;
   }
   return {
     Map: FakeMap,
     Marker: FakeMarker,
     Popup: FakePopup,
-    LngLatBounds: FakeLngLatBounds,
+    setWorkerUrl: vi.fn(),
   };
 });
 vi.mock("@/stores/astrowatch");
@@ -93,7 +88,8 @@ beforeEach(() => {
     heading: null,
     requestAccess: vi.fn(),
   });
-  groundTrackSource.setData.mockClear();
+  setLngLatMock.mockClear();
+  popupSetTextMock.mockClear();
 });
 
 describe("SatelliteMapCompass", () => {
@@ -137,36 +133,83 @@ describe("SatelliteMapCompass", () => {
     ).toBeInTheDocument();
   });
 
-  it("draws the full rise-to-set trajectory, not just the elapsed trail", () => {
-    // One sample before rise, one after set — both real orbit points N2YO
-    // can include in the batch, but outside what "rise to fall" means here
-    // — plus the visible arc itself. `current` sits partway through, so a
-    // trail-only filter would wrongly stop the line there.
-    const positions: SatellitePosition[] = [
-      { azimuth: 190, elevation: -2, satlatitude: 10, satlongitude: 10, sataltitude: 400, timestamp: pass.startUTC - 10 },
-      { azimuth: 200, elevation: 10, satlatitude: 20, satlongitude: 20, sataltitude: 400, timestamp: pass.startUTC },
-      { azimuth: 270, elevation: 60, satlatitude: 30, satlongitude: 30, sataltitude: 400, timestamp: pass.maxUTC },
-      { azimuth: 10, elevation: 10, satlatitude: 40, satlongitude: 40, sataltitude: 400, timestamp: pass.endUTC },
-      { azimuth: 5, elevation: -3, satlatitude: 50, satlongitude: 50, sataltitude: 400, timestamp: pass.endUTC + 10 },
-    ];
-    const current = positions[1]; // partway through the visible arc
-
-    mockTracking({ phase: "active", positions, current });
+  it("toggles the compass card open/closed without affecting the map badges", () => {
+    mockTracking({ phase: "active" });
 
     render(<SatelliteMapCompass />);
 
-    expect(groundTrackSource.setData).toHaveBeenCalledWith(
-      expect.objectContaining({
-        geometry: {
-          type: "LineString",
-          coordinates: [
-            [20, 20],
-            [30, 30],
-            [40, 40],
-          ],
-        },
-      }),
+    // open by default
+    expect(
+      screen.getByRole("button", { name: /enable compass/i }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle("Hide compass"));
+    expect(
+      screen.queryByRole("button", { name: /enable compass/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/active now/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle("Show compass"));
+    expect(
+      screen.getByRole("button", { name: /enable compass/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("places the observer marker at the user's location, labeled You", () => {
+    mockTracking({ phase: "active", current: null });
+
+    render(<SatelliteMapCompass />);
+
+    expect(setLngLatMock).toHaveBeenCalledWith([location.lng, location.lat]);
+    expect(popupSetTextMock).toHaveBeenCalledWith("You");
+  });
+
+  it("moves the live satellite marker to each new /api/positions fix", () => {
+    mockTracking({
+      phase: "active",
+      current: {
+        azimuth: 270,
+        elevation: 60,
+        satlatitude: 40,
+        satlongitude: -100,
+        sataltitude: 408,
+        timestamp: pass.maxUTC,
+      },
+    });
+
+    render(<SatelliteMapCompass />);
+
+    expect(setLngLatMock).toHaveBeenCalledWith([-100, 40]);
+  });
+
+  it("keeps the Preview map button reachable even when a real pass is already selected", () => {
+    // PassList auto-selects the best real pass as soon as it loads, so
+    // gating the preview button on "nothing selected" would make it
+    // unreachable in practice almost all the time — it must show up
+    // alongside a real selected pass too.
+    mockTracking({ phase: "upcoming" });
+
+    render(<SatelliteMapCompass />);
+
+    expect(
+      screen.getByRole("button", { name: /preview map/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("builds a preview scenario with positions spanning the fabricated pass", () => {
+    const { pass: previewPass, positions } = buildPreviewScenario(location);
+
+    expect(positions.length).toBeGreaterThan(0);
+    expect(positions[0].timestamp).toBe(previewPass.startUTC);
+    expect(positions[positions.length - 1].timestamp).toBe(
+      previewPass.endUTC,
     );
+    // sweeps a few degrees either side of the observer — not exact, just
+    // close enough to see the map and marker move during preview
+    for (const position of positions) {
+      expect(Math.abs(position.satlatitude - location.lat)).toBeLessThan(3);
+      expect(Math.abs(position.satlongitude - location.lng)).toBeLessThan(4);
+    }
   });
 
   it("falls back to numeric az/el when compass permission is denied", () => {
@@ -179,6 +222,6 @@ describe("SatelliteMapCompass", () => {
 
     render(<SatelliteMapCompass />);
 
-    expect(screen.getByText(/compass access was denied/i)).toBeInTheDocument();
+    expect(screen.getByText(/compass denied/i)).toBeInTheDocument();
   });
 });
