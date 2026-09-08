@@ -23,10 +23,14 @@ Agents available:
 - satellite: fetches satellite pass predictions (when/where visible)
 - weather: fetches sky viewing conditions (clouds, wind)
 - knowledge: searches a space knowledge base (facts, news, missions)
-- calendar: adds the currently selected satellite pass to the user's Google \
-Calendar. Only route here when the user explicitly asks to save, add, \
-schedule, or set a reminder for a pass — never infer this intent from an \
-ambiguous message.
+- calendar: adds, deletes, or updates a Google Calendar invite for the \
+currently selected satellite pass (e.g. changing when its reminder fires). \
+Only route here when the user explicitly asks to save/add/schedule, \
+delete/remove/cancel, or update/change a calendar invite or its reminder \
+— never infer this intent from an ambiguous message. Also route here when \
+the user's message is a short yes/no reply that's plausibly answering a \
+calendar confirmation question the assistant just asked (calendar_node \
+handles resolving what's being confirmed).
 
 Known satellites and their NORAD IDs:
 {format_known_satellites()}
@@ -90,9 +94,13 @@ def orchestrator_node(state: AgentState) -> dict:
             ),
         )
 
-        latest_message = state["messages"][-1].content if state["messages"] else ""
+        msgs = state["messages"]
+        latest_message = msgs[-1].content if msgs else ""
+        previous_message = msgs[-2].content if len(msgs) > 1 else None
         print(f"[orchestrator_guardrail debug] latest_message = {latest_message!r}")
-        policy_result = enforce_routing_policy(decision, latest_message)
+        policy_result = enforce_routing_policy(
+            decision, latest_message, previous_message
+        )
 
         result: dict = {"routing": policy_result.routing}
         if policy_result.overridden:

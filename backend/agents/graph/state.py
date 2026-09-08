@@ -67,8 +67,12 @@ class CalendarData(BaseModel):
 
     action: Literal[
         "created",
+        "deleted",
+        "updated",
+        "cancelled",
         "needs_confirmation",
         "not_connected",
+        "not_found",
         "error",
         "invalid",
         "rate_limited",
@@ -77,7 +81,11 @@ class CalendarData(BaseModel):
     event_link: Optional[str] = None  # Google's htmlLink, on success
     calendar_options: list[dict] = Field(
         default_factory=list
-    )  # [{"label": ..., "value": calendar_id}] — only populated when action == "needs_confirmation"
+    )  # [{"label": ..., "value": ...}] — only populated when action == "needs_confirmation"
+    # Distinguishes what needs_confirmation is asking about, so chat_v2.py
+    # and the frontend know whether to render the multi-calendar picker or
+    # a plain yes/no confirm card. None for every other action.
+    confirmation_kind: Optional[Literal["calendar_picker", "delete", "update"]] = None
     summary: str = ""  # human-readable outcome, read by report_writer
 
 

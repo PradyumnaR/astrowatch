@@ -26,10 +26,24 @@ MAX_RESOLVED_QUERY_LENGTH = 2000
 # mode, since they'd silently disable a feature the user actually asked
 # for — so this errs toward over-matching.
 _CALENDAR_INTENT_RE = re.compile(
-    r"\b(add|save|schedule|remind|remember|put|book|create)\b[^.?!]{0,40}\b"
-    r"(calendar|event|reminder)\b"
+    r"\b(add|save|schedule|remind|remember|put|book|create|"
+    r"delete|remove|cancel|update|change)\b[^.?!]{0,40}\b"
+    r"(calendar|event|reminder|invite)\b"
     r"|"
-    r"\bcalendar\b[^.?!]{0,40}\b(add|save|please)\b",
+    r"\bcalendar\b[^.?!]{0,40}\b(add|save|please|delete|remove|cancel|update|change)\b",
+    re.IGNORECASE,
+)
+
+# A bare yes/no reply carries no calendar-related words of its own, so it
+# never matches _CALENDAR_INTENT_RE — but it's exactly the shape of
+# message calendar_node's confirmation loop expects on a follow-up turn
+# (see calendar_node.py's ConfirmPendingCalendarAction /
+# CancelPendingCalendarAction). Only treated as a calendar reply when the
+# *previous* message already carried calendar intent, so a plain "yes" to
+# some other question is never misrouted.
+_CONFIRMATION_REPLY_RE = re.compile(
+    r"^\s*(yes|yep|yeah|yup|sure|confirm|confirmed|go ahead|do it|ok|okay|"
+    r"no|nope|nah|never ?mind|cancel|don'?t|do not)\b",
     re.IGNORECASE,
 )
 
@@ -46,7 +60,9 @@ class RoutingPolicyResult:
 
 
 def enforce_routing_policy(
-    routing: RoutingDecision, latest_message: str
+    routing: RoutingDecision,
+    latest_message: str,
+    previous_message: str | None = None,
 ) -> RoutingPolicyResult:
     reasons: list[str] = []
     agents = list(routing.agents_to_call)
@@ -60,6 +76,13 @@ def enforce_routing_policy(
 
     if "calendar" in agents:
         has_intent_language = bool(_CALENDAR_INTENT_RE.search(latest_message))
+        # A bare "yes"/"no" only counts as calendar intent when the turn
+        # before it already did — see _CONFIRMATION_REPLY_RE above.
+        is_confirmation_reply = bool(
+            _CONFIRMATION_REPLY_RE.match(latest_message)
+            and previous_message
+            and _CALENDAR_INTENT_RE.search(previous_message)
+        )
         injection_verdict = classify_injection(latest_message)
 
         if injection_verdict.is_injection:
@@ -67,7 +90,7 @@ def enforce_routing_policy(
             reasons.append(
                 f"calendar_blocked_suspected_injection:{injection_verdict.method}"
             )
-        elif not has_intent_language:
+        elif not has_intent_language and not is_confirmation_reply:
             agents = [a for a in agents if a != "calendar"]
             reasons.append("calendar_blocked_no_explicit_intent_language")
         elif len(agents) > 1:

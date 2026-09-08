@@ -149,5 +149,110 @@ async def create_event(
     }
 
 
+@mcp.tool()
+async def delete_event(
+    access_token: Annotated[
+        str, Field(description="A valid Google OAuth access token")
+    ],
+    calendar_id: str,
+    dedupe_key: Annotated[
+        str,
+        Field(
+            description="Opaque idempotency key that identifies the "
+            "AstroWatch-created event to delete. Only an event carrying "
+            "this exact private extended property is touched."
+        ),
+    ],
+) -> dict:
+    """
+    Deletes the AstroWatch-created event on this calendar matching
+    dedupe_key, if one exists. Never accepts a raw event id — the lookup
+    is always by dedupe_key, so this can only ever remove an event
+    AstroWatch itself created (see _find_event_by_dedupe_key), not an
+    arbitrary event on the user's calendar.
+    """
+    async with httpx.AsyncClient() as client:
+        existing = await _find_event_by_dedupe_key(
+            client, access_token, calendar_id, dedupe_key
+        )
+        if not existing:
+            return {"deleted": False, "reason": "not_found"}
+
+        response = await client.delete(
+            f"{CALENDAR_API_BASE}/calendars/{calendar_id}/events/{existing['id']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=15,
+        )
+
+    # Google returns 410 Gone if the event was already deleted elsewhere
+    # (e.g. by the user, directly in Google Calendar) between our lookup
+    # and this call — treat that the same as a successful delete.
+    if response.status_code >= 400 and response.status_code != 410:
+        raise RuntimeError(
+            f"Google Calendar API error {response.status_code}: {response.text}"
+        )
+
+    return {"deleted": True, "id": existing["id"]}
+
+
+@mcp.tool()
+async def update_event(
+    access_token: Annotated[
+        str, Field(description="A valid Google OAuth access token")
+    ],
+    calendar_id: str,
+    dedupe_key: Annotated[
+        str,
+        Field(
+            description="Opaque idempotency key that identifies the "
+            "AstroWatch-created event to update. Only an event carrying "
+            "this exact private extended property is touched."
+        ),
+    ],
+    reminder_minutes: Annotated[
+        int, Field(description="New reminder lead time, in minutes before "
+        "the event starts.")
+    ],
+) -> dict:
+    """
+    Updates the reminder on the AstroWatch-created event on this calendar
+    matching dedupe_key, if one exists. Same dedupe_key-only lookup as
+    delete_event — never accepts a raw event id.
+    """
+    async with httpx.AsyncClient() as client:
+        existing = await _find_event_by_dedupe_key(
+            client, access_token, calendar_id, dedupe_key
+        )
+        if not existing:
+            return {"updated": False, "reason": "not_found"}
+
+        response = await client.patch(
+            f"{CALENDAR_API_BASE}/calendars/{calendar_id}/events/{existing['id']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "reminders": {
+                    "useDefault": False,
+                    "overrides": [
+                        {"method": "popup", "minutes": reminder_minutes}
+                    ],
+                }
+            },
+            timeout=15,
+        )
+
+    if response.status_code >= 400:
+        raise RuntimeError(
+            f"Google Calendar API error {response.status_code}: {response.text}"
+        )
+
+    event = response.json()
+    return {
+        "updated": True,
+        "htmlLink": event.get("htmlLink"),
+        "id": event.get("id"),
+        "reminder_minutes": reminder_minutes,
+    }
+
+
 if __name__ == "__main__":
     mcp.run()
