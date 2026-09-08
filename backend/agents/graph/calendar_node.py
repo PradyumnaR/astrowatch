@@ -21,8 +21,13 @@ approach orchestrator_node uses to resolve multi-turn references.
 
 Unlike satellite/weather/knowledge nodes, this one can WRITE to an
 external system, so it deliberately does not guess when something's
-ambiguous (which calendar to use) — it returns needs_confirmation and
-lets chat_v2.py surface that as an elicitation event instead.
+ambiguous. create/delete/update all confirm before doing anything
+irreversible: create confirms which calendar to use when there's more
+than one (confirmation_kind == "create"), delete/update confirm the
+action itself (confirmation_kind == "delete"/"update") — all surfaced by
+chat_v2.py as an elicitation event. And if the action classifier itself
+can't tell what the user wants, calendar_node fails safely with a chat
+message asking them to clarify, rather than guessing "create".
 """
 
 import os
@@ -158,8 +163,10 @@ message.
 - cancel_pending_calendar_action — the user's latest message is a short \
 no/never-mind/decline reply to that same kind of preceding request.
 
-If the latest message doesn't clearly fit any of these, default to \
-create_pass_invite.
+If the latest message doesn't clearly fit any single one of these, do \
+not call any tool — it's safer to ask the user to clarify than to guess, \
+since every one of these tools results in a real change (or a real \
+question) about the user's actual calendar.
 """
 
 
@@ -167,13 +174,19 @@ def _format_recent_history(messages: list, limit: int = 6) -> str:
     return "\n".join(f"{m.role}: {m.content}" for m in messages[-limit:])
 
 
-async def _classify_calendar_action(state: AgentState) -> BaseModel:
+async def _classify_calendar_action(state: AgentState) -> Optional[BaseModel]:
     """
     Real Anthropic tool-calling (LangChain's bind_tools, same mechanism as
     the raw SDK's native tool use) over a cheap model — reads recent
     conversation history and picks exactly one of the five calendar tools
-    above. Falls back to CreatePassInvite (today's only behavior) on any
-    classification failure, so this is purely additive.
+    above.
+
+    Returns None — never a guessed action — when the model doesn't call a
+    tool at all, calls one we don't recognize, or the call outright fails
+    (timeout, API error, ...). calendar_node treats None as "couldn't
+    figure out what you wanted" and fails safely with a chat message
+    rather than silently defaulting to create (a real write) on a
+    classification failure.
     """
     messages = state.get("messages", [])
     selected_pass = state.get("selected_pass")
@@ -194,16 +207,16 @@ async def _classify_calendar_action(state: AgentState) -> BaseModel:
         )
         tool_calls = getattr(response, "tool_calls", None) or []
         if not tool_calls:
-            return CreatePassInvite()
+            return None
 
         call = tool_calls[0]
         tool_cls = _CALENDAR_TOOL_NAME_MAP.get(call["name"])
         if tool_cls is None:
-            return CreatePassInvite()
+            return None
         return tool_cls(**call.get("args", {}))
     except Exception:
         traceback.print_exc()
-        return CreatePassInvite()
+        return None
 
 
 # ── existing helpers (token refresh, MCP error handling) ────────────────
@@ -442,6 +455,18 @@ async def calendar_node(state: AgentState) -> dict:
 
     action = await _classify_calendar_action(state)
 
+    # No guessing — a classification failure never falls back to a real
+    # write. Fail safely with a message the user can act on instead.
+    if action is None:
+        return {
+            "calendar_data": CalendarData(
+                action="error",
+                summary="I couldn't tell what you wanted to do with your "
+                "calendar — could you rephrase that?",
+            ),
+            "errors": ["calendar_node_error: action_classification_failed"],
+        }
+
     # ── fresh delete/update requests — confirm before touching anything ──
     if isinstance(action, DeletePassInvite):
         return {
@@ -491,8 +516,11 @@ async def calendar_node(state: AgentState) -> dict:
             )
         }
 
-    # Everything past this point needs the MCP session: CreatePassInvite
-    # (existing flow) or a confirmed delete/update.
+    # Everything past this point needs the MCP session: only
+    # CreatePassInvite (a fresh add) or ConfirmPendingCalendarAction (a
+    # confirmed delete/update) should ever reach here — checked explicitly
+    # below, with a defensive fail-safe else in case a future tool type
+    # gets added to the classifier without a matching branch here.
     try:
         connections: dict[str, Connection] = {
             "calendar": StreamableHttpConnection(
@@ -550,84 +578,100 @@ async def calendar_node(state: AgentState) -> dict:
                     action.reminder_minutes, clerk_user_id,
                 )
 
-            # ── create (existing flow, unchanged) ────────────────────────
-            # Step 1 — ambiguity check: does the user have more than one
-            # writable calendar? NOTE: field names below (accessRole,
-            # primary, summary) are the standard Google Calendar API v3
-            # CalendarList shape — worth confirming against a real
-            # list_calendars response the first time this runs, same as
-            # every other MCP tool wrapper we've built this week.
-            matched = (
-                None
-                if detect_prompt_injection(latest_message)
-                else next(
-                    (c for c in writable if c.get("summary", "") in latest_message),
-                    None,
+            elif isinstance(action, CreatePassInvite):
+                # Step 1 — ambiguity check: does the user have more than
+                # one writable calendar? NOTE: field names below
+                # (accessRole, primary, summary) are the standard Google
+                # Calendar API v3 CalendarList shape — worth confirming
+                # against a real list_calendars response the first time
+                # this runs, same as every other MCP tool wrapper we've
+                # built this week.
+                matched = (
+                    None
+                    if detect_prompt_injection(latest_message)
+                    else next(
+                        (c for c in writable if c.get("summary", "") in latest_message),
+                        None,
+                    )
                 )
-            )
-            if matched:
-                calendar_id = matched["id"]
-            elif len(writable) > 1:
+                if matched:
+                    calendar_id = matched["id"]
+                elif len(writable) > 1:
+                    return {
+                        "calendar_data": CalendarData(
+                            action="needs_confirmation",
+                            confirmation_kind="create",
+                            summary="Multiple calendars found.",
+                            calendar_options=[
+                                {
+                                    "label": c.get("summary", c.get("id", "Unnamed")),
+                                    "value": c.get("id"),
+                                }
+                                for c in writable
+                            ],
+                        )
+                    }
+                else:
+                    calendar_id = writable[0]["id"] if writable else "primary"
+
+                # Step 2 — create the event
+                start_iso = datetime.fromtimestamp(
+                    selected_pass.startUTC, tz=timezone.utc
+                ).isoformat()
+                end_iso = datetime.fromtimestamp(
+                    selected_pass.endUTC, tz=timezone.utc
+                ).isoformat()
+
+                event_result = await session.call_tool(
+                    "create_event",
+                    {
+                        "access_token": access_token,
+                        "calendar_id": calendar_id,
+                        "summary": f"{selected_pass.satname} pass",
+                        "description": f"Visible satellite pass — max elevation {selected_pass.maxEl}°",
+                        "start_time": start_iso,
+                        "end_time": end_iso,
+                        "reminder_minutes": 10,
+                        "dedupe_key": dedupe_key,
+                    },
+                )
+
+                error = await _handle_tool_error(
+                    event_result, clerk_user_id, "create_event"
+                )
+                if error:
+                    return error
+                event = event_result.structuredContent or {}
+                already_existed = bool(event.get("already_existed"))
+
                 return {
                     "calendar_data": CalendarData(
-                        action="needs_confirmation",
-                        confirmation_kind="calendar_picker",
-                        summary="Multiple calendars found.",
-                        calendar_options=[
-                            {
-                                "label": c.get("summary", c.get("id", "Unnamed")),
-                                "value": c.get("id"),
-                            }
-                            for c in writable
-                        ],
-                    )
-                }
-            else:
-                calendar_id = writable[0]["id"] if writable else "primary"
-
-            # Step 2 — create the event
-            start_iso = datetime.fromtimestamp(
-                selected_pass.startUTC, tz=timezone.utc
-            ).isoformat()
-            end_iso = datetime.fromtimestamp(
-                selected_pass.endUTC, tz=timezone.utc
-            ).isoformat()
-
-            event_result = await session.call_tool(
-                "create_event",
-                {
-                    "access_token": access_token,
-                    "calendar_id": calendar_id,
-                    "summary": f"{selected_pass.satname} pass",
-                    "description": f"Visible satellite pass — max elevation {selected_pass.maxEl}°",
-                    "start_time": start_iso,
-                    "end_time": end_iso,
-                    "reminder_minutes": 10,
-                    "dedupe_key": dedupe_key,
-                },
-            )
-
-            error = await _handle_tool_error(
-                event_result, clerk_user_id, "create_event"
-            )
-            if error:
-                return error
-            event = event_result.structuredContent or {}
-            already_existed = bool(event.get("already_existed"))
-
-            return {
-                "calendar_data": CalendarData(
-                    action="created",
-                    event_link=event.get("htmlLink"),
-                    already_existed=already_existed,
-                    summary=(
-                        f"{selected_pass.satname} pass was already on the calendar."
-                        if already_existed
-                        else f"Added {selected_pass.satname} pass to calendar."
+                        action="created",
+                        event_link=event.get("htmlLink"),
+                        already_existed=already_existed,
+                        summary=(
+                            f"{selected_pass.satname} pass was already on the calendar."
+                            if already_existed
+                            else f"Added {selected_pass.satname} pass to calendar."
+                        ),
                     ),
-                ),
-                "tools_used": ["google_calendar"],
-            }
+                    "tools_used": ["google_calendar"],
+                }
+
+            else:
+                # Defensive only — every real path above should have
+                # matched by now. Fails safely rather than silently
+                # falling through to a create.
+                return {
+                    "calendar_data": CalendarData(
+                        action="error",
+                        summary="Something went wrong figuring out what "
+                        "calendar action to take — please try again.",
+                    ),
+                    "errors": [
+                        f"calendar_node_error: unexpected_action_type:{type(action).__name__}"
+                    ],
+                }
 
     except Exception as e:
         traceback.print_exc()

@@ -88,14 +88,15 @@ async def stream_chat_with_tools_v2(
             if node_name == "calendar":
                 calendar_data = node_output.get("calendar_data")
                 if calendar_data and calendar_data.action == "needs_confirmation":
-                    # confirmation_kind distinguishes the ambiguous-calendar
-                    # picker (multiple options) from a plain yes/no confirm
-                    # (delete/update) — the frontend renders the same card
-                    # either way but sends a different reply shape back.
-                    kind = calendar_data.confirmation_kind or "calendar_picker"
+                    # confirmation_kind distinguishes create's ambiguous-
+                    # calendar picker (multiple options) from a plain
+                    # yes/no confirm (delete/update) — the frontend renders
+                    # the same card either way but sends a different reply
+                    # shape back.
+                    kind = calendar_data.confirmation_kind or "create"
                     question = (
                         "Which calendar should I use?"
-                        if kind == "calendar_picker"
+                        if kind == "create"
                         else calendar_data.summary
                     )
                     elicitation_event = {

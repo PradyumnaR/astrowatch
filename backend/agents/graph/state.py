@@ -82,10 +82,12 @@ class CalendarData(BaseModel):
     calendar_options: list[dict] = Field(
         default_factory=list
     )  # [{"label": ..., "value": ...}] — only populated when action == "needs_confirmation"
-    # Distinguishes what needs_confirmation is asking about, so chat_v2.py
-    # and the frontend know whether to render the multi-calendar picker or
-    # a plain yes/no confirm card. None for every other action.
-    confirmation_kind: Optional[Literal["calendar_picker", "delete", "update"]] = None
+    # Distinguishes what needs_confirmation is asking about — "create"
+    # (which calendar to use, when more than one is writable), "delete",
+    # or "update" — so chat_v2.py and the frontend know whether to render
+    # the multi-calendar picker or a plain yes/no confirm card. None for
+    # every action that isn't needs_confirmation.
+    confirmation_kind: Optional[Literal["create", "delete", "update"]] = None
     summary: str = ""  # human-readable outcome, read by report_writer
 
 
