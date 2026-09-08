@@ -74,23 +74,42 @@ def enforce_routing_policy(
         resolved_query = resolved_query[:MAX_RESOLVED_QUERY_LENGTH]
         reasons.append("resolved_query_truncated")
 
-    if "calendar" in agents:
+    # Computed unconditionally — a confirmation reply must be able to
+    # force "calendar" INTO agents_to_call, not just survive there once
+    # the router already picked it. A bare "yes"/"no" carries no calendar
+    # keywords of its own, so the LLM router's own general ambiguity rule
+    # ("if unsure, default to all") is a live alternative it can pick
+    # instead of following the "route confirmation replies to calendar"
+    # instruction — that's an LLM judgment call, not a guarantee. Only
+    # counts as a confirmation reply when the turn before it already
+    # carried calendar intent, so a plain "yes" to some other question is
+    # never misrouted.
+    is_confirmation_reply = bool(
+        _CONFIRMATION_REPLY_RE.match(latest_message)
+        and previous_message
+        and _CALENDAR_INTENT_RE.search(previous_message)
+    )
+    injection_verdict = classify_injection(latest_message)
+
+    if is_confirmation_reply and not injection_verdict.is_injection:
+        # Deterministically force calendar for a confirmation reply,
+        # regardless of what the router chose — calendar_node's own
+        # ConfirmPendingCalendarAction/CancelPendingCalendarAction
+        # classifier is what actually resolves what's being confirmed;
+        # this guardrail just has to make sure it gets the chance to run.
+        if agents != ["calendar"]:
+            reasons.append("calendar_forced_confirmation_reply")
+        agents = ["calendar"]
+        intent = "calendar"
+    elif "calendar" in agents:
         has_intent_language = bool(_CALENDAR_INTENT_RE.search(latest_message))
-        # A bare "yes"/"no" only counts as calendar intent when the turn
-        # before it already did — see _CONFIRMATION_REPLY_RE above.
-        is_confirmation_reply = bool(
-            _CONFIRMATION_REPLY_RE.match(latest_message)
-            and previous_message
-            and _CALENDAR_INTENT_RE.search(previous_message)
-        )
-        injection_verdict = classify_injection(latest_message)
 
         if injection_verdict.is_injection:
             agents = [a for a in agents if a != "calendar"]
             reasons.append(
                 f"calendar_blocked_suspected_injection:{injection_verdict.method}"
             )
-        elif not has_intent_language and not is_confirmation_reply:
+        elif not has_intent_language:
             agents = [a for a in agents if a != "calendar"]
             reasons.append("calendar_blocked_no_explicit_intent_language")
         elif len(agents) > 1:
