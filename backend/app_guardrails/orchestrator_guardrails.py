@@ -26,16 +26,54 @@ MAX_RESOLVED_QUERY_LENGTH = 2000
 # mode, since they'd silently disable a feature the user actually asked
 # for — so this errs toward over-matching.
 _CALENDAR_INTENT_RE = re.compile(
-    r"\b(add|save|schedule|remind|remember|put|book|create)\b[^.?!]{0,40}\b"
-    r"(calendar|event|reminder)\b"
+    r"\b(add|save|schedule|remind|remember|put|book|create|"
+    r"delete|remove|cancel|update|change)\b[^.?!]{0,40}\b"
+    r"(calendar|event|reminder|invite)\b"
     r"|"
-    r"\bcalendar\b[^.?!]{0,40}\b(add|save|please)\b",
+    r"\bcalendar\b[^.?!]{0,40}\b(add|save|please|delete|remove|cancel|update|change)\b",
+    re.IGNORECASE,
+)
+
+# A bare yes/no reply carries no calendar-related words of its own, so it
+# never matches _CALENDAR_INTENT_RE — but it's exactly the shape of
+# message calendar_node's confirmation loop expects on a follow-up turn
+# (see calendar_node.py's ConfirmPendingCalendarAction /
+# CancelPendingCalendarAction). Only treated as a calendar reply when the
+# *previous* message already carried calendar intent, so a plain "yes" to
+# some other question is never misrouted.
+_CONFIRMATION_REPLY_RE = re.compile(
+    r"^\s*(yes|yep|yeah|yup|sure|confirm|confirmed|go ahead|do it|ok|okay|"
+    r"no|nope|nah|never ?mind|cancel|don'?t|do not)\b",
     re.IGNORECASE,
 )
 
 # Safe, read-only fallback — mirrors graph.py's own
 # route_after_orchestrator default for a missing/failed routing decision.
 _SAFE_FALLBACK_AGENTS = ["satellite", "weather", "knowledge"]
+
+
+def is_calendar_confirmation_reply(
+    latest_message: str, previous_message: str | None
+) -> bool:
+    """
+    True when latest_message looks like a bare yes/no reply and the turn
+    immediately before it already carried calendar intent — i.e. it's
+    very likely answering a confirmation question calendar_node itself
+    just asked (see calendar_node.py's ConfirmPendingCalendarAction /
+    CancelPendingCalendarAction). Purely deterministic (no LLM call), so
+    orchestrator_node uses it to route such replies to calendar directly
+    — a bare "yes" carries no calendar keywords of its own, so leaving
+    that decision to the router's own judgment is unreliable. This
+    module's enforce_routing_policy also uses it, but only to decide
+    whether an already-chosen "calendar" survives — see its own docstring
+    for why it must never be the thing that adds calendar in the first
+    place.
+    """
+    return bool(
+        _CONFIRMATION_REPLY_RE.match(latest_message or "")
+        and previous_message
+        and _CALENDAR_INTENT_RE.search(previous_message)
+    )
 
 
 @dataclass
@@ -46,8 +84,16 @@ class RoutingPolicyResult:
 
 
 def enforce_routing_policy(
-    routing: RoutingDecision, latest_message: str
+    routing: RoutingDecision,
+    latest_message: str,
+    previous_message: str | None = None,
 ) -> RoutingPolicyResult:
+    """
+    Downgrade-only: every branch below can remove "calendar" from
+    agents_to_call (or isolate it from other agents), never add it — see
+    this module's docstring. Deciding to route TO calendar in the first
+    place, confirmation replies included, is orchestrator_node's job.
+    """
     reasons: list[str] = []
     agents = list(routing.agents_to_call)
     intent = routing.intent
@@ -60,6 +106,11 @@ def enforce_routing_policy(
 
     if "calendar" in agents:
         has_intent_language = bool(_CALENDAR_INTENT_RE.search(latest_message))
+        # A bare "yes"/"no" only counts as calendar intent when the turn
+        # before it already did — see is_calendar_confirmation_reply.
+        is_confirmation_reply = is_calendar_confirmation_reply(
+            latest_message, previous_message
+        )
         injection_verdict = classify_injection(latest_message)
 
         if injection_verdict.is_injection:
@@ -67,7 +118,7 @@ def enforce_routing_policy(
             reasons.append(
                 f"calendar_blocked_suspected_injection:{injection_verdict.method}"
             )
-        elif not has_intent_language:
+        elif not has_intent_language and not is_confirmation_reply:
             agents = [a for a in agents if a != "calendar"]
             reasons.append("calendar_blocked_no_explicit_intent_language")
         elif len(agents) > 1:

@@ -17,7 +17,7 @@ from agents.graph.satellite_node import satellite_node
 from agents.graph.weather_node import weather_node
 from agents.graph.knowledge_node import knowledge_node
 from agents.graph.report_writer_node import report_writer_node
-from agents.graph.calendar_node import calendar_node
+from agents.graph.calendar_node.node import calendar_node
 from agents.graph.state import AgentState
 
 

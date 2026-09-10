@@ -12,6 +12,8 @@ MIN_EVENT_SECONDS = 1
 MAX_EVENT_SECONDS = 6 * 60 * 60  # 6h — real passes are minutes; generous buffer
 MAX_PAST_SLACK_SECONDS = 15 * 60  # allow a pass that started up to 15 min ago
 MAX_FUTURE_DAYS = 30
+MIN_REMINDER_MINUTES = 0
+MAX_REMINDER_MINUTES = 24 * 60  # 1 day — generous buffer over any sane ask
 
 # Control characters (excluding common whitespace) have no legitimate
 # reason to appear in a satellite name and are a classic calendar/email
@@ -74,6 +76,21 @@ def validate_selected_pass(
             "That pass is too far in the future for me to add right now.",
         )
 
+    return None
+
+
+def validate_reminder_minutes(reminder_minutes: int) -> GuardrailViolation | None:
+    """
+    Sanity-checks an LLM-parsed reminder lead time before it's allowed to
+    reach the Google Calendar API. reminder_minutes is model-extracted
+    from free text ("15 minutes before"), so bound it hard rather than
+    trusting whatever number came back.
+    """
+    if reminder_minutes < MIN_REMINDER_MINUTES or reminder_minutes > MAX_REMINDER_MINUTES:
+        return GuardrailViolation(
+            "reminder_minutes_out_of_range",
+            "That reminder time doesn't look right, so I won't set it.",
+        )
     return None
 
 

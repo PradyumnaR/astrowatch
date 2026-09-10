@@ -28,12 +28,20 @@ export default function ChatPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null); // NEW
   const [elicitation, setElicitation] = useState<{
+    kind: "create" | "delete" | "update";
     question: string;
     options: { label: string; value: string }[];
   } | null>(null);
 
   function handleElicitationChoice(option: { label: string; value: string }) {
-    submitMessage(`Add it to my ${option.label} calendar`);
+    if (elicitation?.kind === "create") {
+      submitMessage(`Add it to my ${option.label} calendar`);
+    } else {
+      // Delete/update confirmations — the option label is already a full,
+      // literal reply ("Yes, delete it" / "No, keep it") that
+      // calendar_node's confirm/cancel classifier reads on the next turn.
+      submitMessage(option.label);
+    }
   }
 
   async function submitMessage(overrideText?: string) {
@@ -119,6 +127,7 @@ export default function ChatPanel() {
             setIsLoading(false);
             setStatusMessage(null);
             setElicitation({
+              kind: event.kind ?? "create",
               question: event.question,
               options: event.options,
             });

@@ -126,6 +126,31 @@ def _format_context(state: AgentState) -> str:
                 f"event. {calendar_data.summary} "
                 f"Event link: {calendar_data.event_link or 'not provided'}"
             )
+        elif calendar_data.action == "deleted":
+            parts.append(
+                f"\nCalendar action: successfully deleted the AstroWatch "
+                f"Google Calendar event for this pass. {calendar_data.summary} "
+                "Confirm plainly that it was removed."
+            )
+        elif calendar_data.action == "updated":
+            parts.append(
+                f"\nCalendar action: successfully updated the AstroWatch "
+                f"Google Calendar event for this pass. {calendar_data.summary} "
+                f"Event link: {calendar_data.event_link or 'not provided'}"
+            )
+        elif calendar_data.action == "cancelled":
+            parts.append(
+                f"\nCalendar action: the user declined a pending calendar "
+                f"change, so nothing was touched. {calendar_data.summary} "
+                "Acknowledge briefly, don't apologize or ask again."
+            )
+        elif calendar_data.action == "not_found":
+            parts.append(
+                f"\nCalendar action: the user asked to delete or update a "
+                f"calendar invite, but no AstroWatch-created invite exists "
+                f"for this pass. {calendar_data.summary} State this plainly "
+                "— don't imply anything was deleted or changed."
+            )
         elif calendar_data.action == "not_connected":
             parts.append(
                 "\nCalendar action: the user asked to add something to their "
@@ -136,6 +161,12 @@ def _format_context(state: AgentState) -> str:
             parts.append(
                 f"\nCalendar action: attempted but failed. {calendar_data.summary} "
                 "Apologize briefly and suggest trying again."
+            )
+        elif calendar_data.action == "invalid":
+            parts.append(
+                f"\nCalendar action: rejected before making any change. "
+                f"{calendar_data.summary} State this plainly, don't apologize "
+                "excessively."
             )
     else:
         # Explicit, not silent — leaving this out entirely let the model

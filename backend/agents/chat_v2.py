@@ -88,9 +88,21 @@ async def stream_chat_with_tools_v2(
             if node_name == "calendar":
                 calendar_data = node_output.get("calendar_data")
                 if calendar_data and calendar_data.action == "needs_confirmation":
+                    # confirmation_kind distinguishes create's ambiguous-
+                    # calendar picker (multiple options) from a plain
+                    # yes/no confirm (delete/update) — the frontend renders
+                    # the same card either way but sends a different reply
+                    # shape back.
+                    kind = calendar_data.confirmation_kind or "create"
+                    question = (
+                        "Which calendar should I use?"
+                        if kind == "create"
+                        else calendar_data.summary
+                    )
                     elicitation_event = {
                         "type": "elicitation",
-                        "question": "Which calendar should I use?",
+                        "kind": kind,
+                        "question": question,
                         "options": calendar_data.calendar_options,
                     }
                     yield f"data: {json.dumps(elicitation_event)}\n\n"
