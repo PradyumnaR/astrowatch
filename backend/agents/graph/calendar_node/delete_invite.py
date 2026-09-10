@@ -8,6 +8,8 @@ async def delete_across_calendars(
     writable: list[dict],
     dedupe_key: str,
     clerk_user_id: str,
+    satname: str,
+    start_utc: int,
 ) -> dict:
     for cal in writable:
         result = await session.call_tool(
@@ -16,6 +18,8 @@ async def delete_across_calendars(
                 "access_token": access_token,
                 "calendar_id": cal["id"],
                 "dedupe_key": dedupe_key,
+                "satname": satname,
+                "start_utc": start_utc,
             },
         )
         error = await handle_tool_error(result, clerk_user_id, "delete_event")

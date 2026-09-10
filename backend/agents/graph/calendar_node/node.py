@@ -233,6 +233,8 @@ async def calendar_node(state: AgentState) -> dict:
                         writable,
                         dedupe_key,
                         clerk_user_id,
+                        selected_pass.satname,
+                        selected_pass.startUTC,
                     )
 
                 # action.action == "update"
@@ -259,6 +261,8 @@ async def calendar_node(state: AgentState) -> dict:
                     dedupe_key,
                     action.reminder_minutes,
                     clerk_user_id,
+                    selected_pass.satname,
+                    selected_pass.startUTC,
                 )
 
             elif isinstance(action, CreatePassInvite):

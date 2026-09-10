@@ -9,6 +9,8 @@ async def update_invite(
     dedupe_key: str,
     reminder_minutes: int,
     clerk_user_id: str,
+    satname: str,
+    start_utc: int,
 ) -> dict:
     for cal in writable:
         result = await session.call_tool(
@@ -18,6 +20,8 @@ async def update_invite(
                 "calendar_id": cal["id"],
                 "dedupe_key": dedupe_key,
                 "reminder_minutes": reminder_minutes,
+                "satname": satname,
+                "start_utc": start_utc,
             },
         )
         error = await handle_tool_error(result, clerk_user_id, "update_event")
