@@ -41,6 +41,26 @@ function smoothAngle(prev: number | null, next: number): number {
   return (prev + delta * SMOOTHING + 360) % 360;
 }
 
+// A genuine sensor glitch — a magnetometer reading briefly thrown off by
+// nearby magnetic interference (the phone's own speaker/vibration motor,
+// a metal object), or the device's own orientation-fusion algorithm
+// passing through a numerically unstable pose — tends to show up as a
+// single native-tick delta far larger than a hand can plausibly rotate a
+// phone between two sensor samples (these fire every ~16-33ms). That's
+// what produces "holds still, then instantly swings ~180°, then settles
+// back": SMOOTHING is a low-pass filter, good at averaging out ordinary
+// per-sample jitter, but a *sustained* bad reading arriving at native tick
+// rate overwhelms its exponential average within a couple hundred
+// milliseconds — not the several seconds its smoothing factor alone would
+// suggest — because it keeps reapplying the same wrong pull every tick.
+// Reject an implausible single-tick jump outright rather than blending it
+// in, unless it keeps recurring for a while — at that point it's more
+// likely a real fast device rotation (or events resuming after a gap,
+// e.g. the tab having been backgrounded) than a glitch, so let it through
+// rather than getting stuck ignoring real motion forever.
+const MAX_TICK_JUMP_DEG = 40;
+const SUSTAINED_JUMP_MS = 500;
+
 /**
  * Live compass heading (0–360°, 0 = N, clockwise) from the device's
  * orientation sensor, with iOS's gesture-gated permission flow handled.
@@ -57,6 +77,8 @@ export function useDeviceOrientation() {
   const attachedRef = useRef(false);
   const smoothedHeadingRef = useRef<number | null>(null);
   const lastEmitRef = useRef(0);
+  const lastAcceptedRawRef = useRef<number | null>(null);
+  const jumpStreakStartRef = useRef<number | null>(null);
 
   const handleEvent = useCallback((event: DeviceOrientationEvent) => {
     const webkitHeading = (event as IOSDeviceOrientationEvent)
@@ -69,14 +91,37 @@ export function useDeviceOrientation() {
     }
     if (raw === null) return;
 
-    // Smooth on every event so the filter stays accurate at native sensor
-    // rate, but only emit to React state (and trigger a render) a few
-    // times a second — plenty fluid alongside the arrow's own CSS
-    // transition, and far cheaper than re-rendering on every sensor tick.
+    const now = performance.now();
+
+    // Reject an implausible single-tick jump (see MAX_TICK_JUMP_DEG above)
+    // rather than smoothing it in, unless it keeps showing up for a while —
+    // then it's more likely real than a glitch.
+    if (lastAcceptedRawRef.current !== null) {
+      const jump = Math.abs(
+        ((raw - lastAcceptedRawRef.current + 540) % 360) - 180,
+      );
+      if (jump > MAX_TICK_JUMP_DEG) {
+        if (jumpStreakStartRef.current === null) {
+          jumpStreakStartRef.current = now;
+        }
+        if (now - jumpStreakStartRef.current < SUSTAINED_JUMP_MS) {
+          return; // drop this sample — likely a glitch, not real motion
+        }
+        // Kept jumping for SUSTAINED_JUMP_MS straight — accept it below.
+      } else {
+        jumpStreakStartRef.current = null;
+      }
+    }
+    lastAcceptedRawRef.current = raw;
+
+    // Smooth on every accepted event so the filter stays accurate at
+    // native sensor rate, but only emit to React state (and trigger a
+    // render) a few times a second — plenty fluid alongside the arrow's
+    // own CSS transition, and far cheaper than re-rendering on every
+    // sensor tick.
     const smoothed = smoothAngle(smoothedHeadingRef.current, raw);
     smoothedHeadingRef.current = smoothed;
 
-    const now = performance.now();
     if (now - lastEmitRef.current < EMIT_INTERVAL_MS) return;
     lastEmitRef.current = now;
     setHeading(smoothed);
