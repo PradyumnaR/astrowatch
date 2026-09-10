@@ -85,13 +85,30 @@ export function useDeviceOrientation() {
   const attach = useCallback(() => {
     if (attachedRef.current) return;
     attachedRef.current = true;
-    if ("ondeviceorientationabsolute" in window) {
+    // Exactly one of these two listeners, never both: "deviceorientation"'s
+    // `alpha` is only guaranteed relative to whatever orientation the device
+    // happened to be in when it started firing (drifts further, and can
+    // rebase to a new arbitrary zero point, e.g. across a tab/visibility
+    // change) — that's true north only as a same-origin fallback for
+    // browsers that don't support the absolute event at all. Browsers that
+    // fire "deviceorientationabsolute" give real true-north headings there
+    // instead, so it takes over exclusively. Registering both used to feed
+    // both a real absolute reading and a drifting relative one into the same
+    // smoothing filter, corrupting the blended heading (symptom: an
+    // apparently-fine heading that quietly drifts, or jumps to a new stable
+    // — but wrong — value after backgrounding the tab). iOS never fires
+    // "deviceorientationabsolute" at all, so it always falls into the
+    // "deviceorientation" branch below and gets its true heading from
+    // `webkitCompassHeading` instead (see handleEvent).
+    const supportsAbsolute = "ondeviceorientationabsolute" in window;
+    if (supportsAbsolute) {
       window.addEventListener(
         "deviceorientationabsolute",
         handleEvent as EventListener,
       );
+    } else {
+      window.addEventListener("deviceorientation", handleEvent);
     }
-    window.addEventListener("deviceorientation", handleEvent);
   }, [handleEvent]);
 
   useEffect(() => {
