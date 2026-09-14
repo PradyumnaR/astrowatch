@@ -26,7 +26,7 @@ MAX_RESOLVED_QUERY_LENGTH = 2000
 # mode, since they'd silently disable a feature the user actually asked
 # for — so this errs toward over-matching.
 _CALENDAR_INTENT_RE = re.compile(
-    r"\b(add|save|schedule|remind|remember|put|book|create|"
+    r"\b(add|save|schedule|remind|remember|set|put|book|create|"
     r"delete|remove|cancel|update|change)\b[^.?!]{0,40}\b"
     r"(calendar|event|reminder|invite)\b"
     r"|"

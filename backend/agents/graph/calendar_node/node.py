@@ -129,7 +129,7 @@ async def calendar_node(state: AgentState) -> dict:
     # main call in the calendar_node used. LLM uses user message
     # to classify between different tool calls create_invite/delete_invite etc.,
     action = await classify_action(state)
-    print("action =>>>", action)
+    print("Calendar node action ->", action)
 
     # No guessing — a classification failure never falls back to a real
     # write. Fail safely with a message the user can act on instead.
