@@ -1,0 +1,9 @@
+# DeepEval test-suite dependencies — kept separate from requirements.txt
+# so Render's build (backend/render.yaml) never installs these.
+#
+# Install into the same venv as requirements.txt before running anything
+# under backend/eval/:
+#   pip install -r eval/requirements-eval.txt
+#
+# pytest + pytest-asyncio come in transitively via deepeval itself.
+deepeval>=4.2.0,<5.0.0
