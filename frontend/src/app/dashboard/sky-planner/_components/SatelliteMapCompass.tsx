@@ -93,16 +93,41 @@ export function buildPreviewScenario(location: Location): {
 // while a pass is active, so the (relatively expensive) map init/teardown
 // is tied to this component's own mount/unmount rather than running on
 // every render.
+const EMPTY_LINE: GeoJSON.Feature<GeoJSON.LineString> = {
+  type: "Feature",
+  properties: {},
+  geometry: { type: "LineString", coordinates: [] },
+};
+
+function toLine(
+  positions: SatellitePosition[],
+): GeoJSON.Feature<GeoJSON.LineString> {
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: {
+      type: "LineString",
+      coordinates: positions.map((p) => [p.satlongitude, p.satlatitude]),
+    },
+  };
+}
+
 function LiveMap({
   location,
   current,
+  positions,
+  nowSec,
 }: {
   location: Location;
   current: SatellitePosition | null;
+  positions: SatellitePosition[] | null;
+  nowSec: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
   const satMarkerRef = useRef<maplibregl.Marker | null>(null);
   const [mapFailed, setMapFailed] = useState(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   // Create the map once on mount, tear it down on unmount. `location` is
   // only read here for the initial center/observer marker — a pass is
@@ -117,12 +142,42 @@ function LiveMap({
       zoom: 9,
       attributionControl: false,
     });
+    mapRef.current = map;
 
     // Surface a style/tile/network failure instead of leaving the map
     // silently blank — this fires for e.g. an unreachable basemap URL.
     map.on("error", (e) => {
       console.error("MapLibre error:", e.error);
       setMapFailed(true);
+    });
+
+    // Sources/layers can only be added once the style has finished
+    // loading — two lines so the already-traveled part of the fetched
+    // window can be dimmed separately from what's still ahead.
+    map.on("load", () => {
+      map.addSource("sat-path-traveled", { type: "geojson", data: EMPTY_LINE });
+      map.addLayer({
+        id: "sat-path-traveled",
+        type: "line",
+        source: "sat-path-traveled",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#7c6ff7", "line-width": 2, "line-opacity": 0.3 },
+      });
+
+      map.addSource("sat-path-upcoming", { type: "geojson", data: EMPTY_LINE });
+      map.addLayer({
+        id: "sat-path-upcoming",
+        type: "line",
+        source: "sat-path-upcoming",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": "#7c6ff7",
+          "line-width": 2.5,
+          "line-dasharray": [2, 1.5],
+        },
+      });
+
+      setMapLoaded(true);
     });
 
     new maplibregl.Marker({ color: "#2dd4bf" })
@@ -152,7 +207,9 @@ function LiveMap({
     return () => {
       resizeObserver.disconnect();
       map.remove();
+      mapRef.current = null;
       satMarkerRef.current = null;
+      setMapLoaded(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -163,6 +220,33 @@ function LiveMap({
     if (!marker || !current) return;
     marker.setLngLat([current.satlongitude, current.satlatitude]);
   }, [current]);
+
+  // Split the fetched window's per-second samples at "now" so the part of
+  // the trajectory already flown over renders dim/solid and the part still
+  // ahead — what the user actually wants to see, "the next few seconds or
+  // minutes" — renders as a highlighted dashed line.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    const traveledSource = map.getSource(
+      "sat-path-traveled",
+    ) as maplibregl.GeoJSONSource | undefined;
+    const upcomingSource = map.getSource(
+      "sat-path-upcoming",
+    ) as maplibregl.GeoJSONSource | undefined;
+    if (!traveledSource || !upcomingSource) return;
+
+    if (!positions?.length) {
+      traveledSource.setData(EMPTY_LINE);
+      upcomingSource.setData(EMPTY_LINE);
+      return;
+    }
+
+    const splitIdx = positions.findIndex((p) => p.timestamp >= nowSec);
+    const cut = splitIdx === -1 ? positions.length : splitIdx;
+    traveledSource.setData(toLine(positions.slice(0, cut + 1)));
+    upcomingSource.setData(toLine(positions.slice(cut)));
+  }, [positions, nowSec, mapLoaded]);
 
   return (
     <>
@@ -216,6 +300,7 @@ export default function SatelliteMapCompass() {
     phase,
     nowSec,
     current,
+    positions,
     liveAz,
     liveEl,
     isEstimating,
@@ -307,7 +392,12 @@ export default function SatelliteMapCompass() {
   return (
     <div className="relative w-full h-[340px] rounded-xl overflow-hidden border border-aw-border bg-aw-bg">
       {location ? (
-        <LiveMap location={location} current={current} />
+        <LiveMap
+          location={location}
+          current={current}
+          positions={positions}
+          nowSec={nowSec}
+        />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center">
           <p className="text-aw-text-muted text-xs">
