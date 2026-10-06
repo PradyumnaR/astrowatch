@@ -14,6 +14,15 @@ from dotenv import load_dotenv
 load_dotenv()  # must run before importing anything that builds a Supabase/Voyage client
 
 import asyncio
+import os
+import sys
+
+# `python scripts/dump_knowledge_rag_chunks.py` only puts this file's own
+# directory (backend/scripts/) on sys.path, not backend/ itself — so the
+# `agents`/`eval` packages below wouldn't otherwise be importable. Adding
+# backend/ explicitly makes this work regardless of invocation style
+# (plain script, `python -m scripts.dump_knowledge_rag_chunks`, etc.).
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agents.knowledge import search_knowledge_base
 from agents.graph.knowledge_node import _build_sub_quires
