@@ -105,9 +105,10 @@ export interface KnowledgeChunk {
     news_site?: string;
     date?: string;
   };
-  similarity: number;
+  similarity: number | null; // was: number
+  rrf_score?: number | null; // new
+  match_type?: "semantic" | "keyword" | "both" | null; // new
 }
-
 export type UserPlan = "standard" | "pro";
 
 export type McpServerName = "satellite" | "weather" | "knowledge";

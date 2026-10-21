@@ -1,7 +1,11 @@
 # rag/search.py
 
+import os
 from rag.embeddings import embed_text
-from rag.database import search_knowledge as db_search
+from rag.database import (
+    search_knowledge as db_search,
+    hybrid_search_knowledge as db_hybrid_search,
+)
 
 
 async def search(
@@ -15,6 +19,20 @@ async def search(
     Embeds query then searches pgvector.
     """
     query_embedding = await embed_text(query)
+    mode = os.getenv("RAG_SEARCH_MODE", "vector")
+
+    if mode == "hybrid":
+        try:
+            return await db_hybrid_search(
+                query=query,
+                query_embedding=query_embedding,
+                match_threshold=match_threshold,
+                match_count=limit,
+                filter_source=filter_source,
+            )
+        except Exception as e:
+            # Never let the new path take retrieval down — fall back.
+            print(f"hybrid_search_failed, falling back to vector: {e}")
 
     results = await db_search(
         query_embedding=query_embedding,

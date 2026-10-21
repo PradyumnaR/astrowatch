@@ -175,7 +175,9 @@ async def knowledge_agent(request: KnowledgeRequest):
                 source=chunk.get("source", ""),
                 category=chunk.get("category", ""),
                 metadata=chunk.get("metadata", {}),
-                similarity=chunk.get("similarity", 0.0),
+                similarity=chunk.get("similarity"),
+                rrf_score=chunk.get("rrf_score"),
+                match_type=chunk.get("match_type"),
             )
             for chunk in chunks
         ],

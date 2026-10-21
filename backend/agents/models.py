@@ -68,6 +68,8 @@ class KnowledgeChunk(BaseModel):
     category: Optional[str] = None
     metadata: dict = {}
     similarity: Optional[float] = None
+    rrf_score: Optional[float] = None  # new — hybrid mode only
+    match_type: Optional[str] = None  # new — "semantic" | "keyword" | "both"
 
 
 class KnowledgeResponse(BaseModel):

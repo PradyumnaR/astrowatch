@@ -107,6 +107,32 @@ async def search_knowledge(
     return [row for row in result.data if isinstance(row, dict)]
 
 
+async def hybrid_search_knowledge(
+    query: str,
+    query_embedding: list[float] | list[int],
+    match_threshold: float = 0.5,
+    match_count: int = 5,
+    filter_source: str | None = None,
+) -> list[dict]:
+    """
+    Search knowledge base using hybrid similarity.
+    """
+    supabase = get_supabase()
+    result = supabase.rpc(
+        "hybrid_knowledge",
+        {
+            "query_text": query,
+            "query_embedding": query_embedding,
+            "match_threshold": match_threshold,
+            "match_count": match_count,
+            "filter_source": filter_source,
+        },
+    ).execute()
+    if not result.data or not isinstance(result.data, list):
+        return []
+    return [row for row in result.data if isinstance(row, dict)]
+
+
 async def chunk_exists(source: str, metadata: dict) -> bool:
     """
     Check if a chunk already exists in the database.
