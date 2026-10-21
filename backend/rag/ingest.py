@@ -191,6 +191,7 @@ async def ingest_wikipedia(topics: list[str] | None = None) -> dict:
             "Hubble Space Telescope",
             "Tiangong space station",
             "NOAA-19",
+            "NOAA-15",
             "Satellite",
             "Low Earth orbit",
             "Orbital mechanics",

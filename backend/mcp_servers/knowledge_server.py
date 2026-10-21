@@ -50,6 +50,8 @@ def _serialize_chunks(chunks: list[dict]) -> list[dict]:
             "title": c.get("metadata", {}).get("title", ""),
             "url": c.get("metadata", {}).get("url", ""),
             "similarity": c.get("similarity"),
+            "rrf_score": c.get("rrf_score"),  # new
+            "match_type": c.get("match_type"),  # new
         }
         for c in chunks
     ]
