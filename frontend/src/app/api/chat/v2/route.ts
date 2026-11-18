@@ -4,6 +4,14 @@ import { auth } from "@clerk/nextjs/server";
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 
+// An SSE "error" event, which ChatPanel renders as an assistant message
+function sseError(message: string, status: number) {
+  return new Response(
+    `data: ${JSON.stringify({ type: "error", message })}\n\n`,
+    { status, headers: { "Content-Type": "text/event-stream" } },
+  );
+}
+
 export async function POST(req: Request) {
   try {
     const { userId, getToken } = await auth();
@@ -42,6 +50,14 @@ export async function POST(req: Request) {
         conversationId,
       }),
     });
+
+    if (response.status === 429) {
+      const retryAfter = response.headers.get("Retry-After") ?? "a few";
+      return sseError(
+        `You're sending messages quickly. Please wait ${retryAfter} seconds and try again.`,
+        429,
+      );
+    }
 
     if (!response.ok || !response.body) {
       const errorBody = await response.text();

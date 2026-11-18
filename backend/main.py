@@ -48,6 +48,8 @@ from shared.http_client import http_lifespan
 from shared.checkpointer import checkpointer_lifespan
 from agents.graph.graph import graph_lifespan
 
+from shared.rate_limit import chat_rate_limit
+
 load_dotenv()
 
 SSE_HEADERS = {
@@ -255,7 +257,7 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
 
 
-@app.post("/agents/chat/v2/stream")
+@app.post("/agents/chat/v2/stream", dependencies=[Depends(chat_rate_limit)])
 async def agents_chat_v2_stream(
     request: ChatV2Request,
     clerk_user_id: str = Depends(require_user),
@@ -293,7 +295,7 @@ async def agents_chat_v2_history(
     )
 
 
-@app.post("/agents/chat/v2/resume")
+@app.post("/agents/chat/v2/resume", dependencies=[Depends(chat_rate_limit)])
 async def agents_chat_v2_resume(
     request: ChatV2ResumeRequest,
     clerk_user_id: str = Depends(require_user),
