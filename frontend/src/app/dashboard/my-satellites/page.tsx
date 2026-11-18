@@ -16,6 +16,7 @@ export default function MySatellitesPage({}) {
 
       try {
         const res = await fetch("/api/saved-satellites");
+        if (!res.ok) throw new Error("Failed to fetch saved satellites");
         const data = (await res.json()) as SavedSatellite[];
 
         setSavedSatellites(data);

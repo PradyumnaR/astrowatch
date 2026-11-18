@@ -3,11 +3,35 @@ Shared state schema for the LangGraph multi-agent system.
 All nodes read from and write to this single AgentState.
 """
 
-import operator
 from typing import Annotated, Literal, Optional, TypedDict
 from pydantic import BaseModel, Field
 
 from agents.models import ChatMessage, Location, SatellitePass
+
+# ── reducers ─────────────────────────────────────────────────────
+# A reducer decides how a node's (or a request's) update combines with
+# the value already in state. These matter once a checkpointer loads the
+# previous turn's state before the new turn starts.
+
+MAX_STORED_MESSAGES = 40  # ~20 exchanges; bounds prompt size and Redis memory
+
+
+def append_messages(
+    existing: list[ChatMessage] | None, new: list[ChatMessage] | None
+) -> list[ChatMessage]:
+    combined = (existing or []) + (new or [])
+    return combined[-MAX_STORED_MESSAGES:]
+
+
+def per_turn_list(existing: list[str] | None, new: list[str] | None) -> list[str]:
+    """Accumulates within one turn (including parallel branches).
+
+    Passing None resets it — the chat entrypoint does that at the start
+    of every turn, so turn 2 never inherits turn 1's tools/sources/errors.
+    """
+    if new is None:
+        return []
+    return (existing or []) + new
 
 
 class RoutingDecision(BaseModel):
@@ -70,7 +94,6 @@ class CalendarData(BaseModel):
         "deleted",
         "updated",
         "cancelled",
-        "needs_confirmation",
         "not_connected",
         "not_found",
         "error",
@@ -79,44 +102,87 @@ class CalendarData(BaseModel):
     ] = "error"
     already_existed: Optional[bool] = False
     event_link: Optional[str] = None  # Google's htmlLink, on success
-    calendar_options: list[dict] = Field(
-        default_factory=list
-    )  # [{"label": ..., "value": ...}] — only populated when action == "needs_confirmation"
-    # Distinguishes what needs_confirmation is asking about — "create"
-    # (which calendar to use, when more than one is writable), "delete",
-    # or "update" — so chat_v2.py and the frontend know whether to render
-    # the multi-calendar picker or a plain yes/no confirm card. None for
-    # every action that isn't needs_confirmation.
-    confirmation_kind: Optional[Literal["create", "delete", "update"]] = None
     summary: str = ""  # human-readable outcome, read by report_writer
 
 
+class CalendarChoice(BaseModel):
+    """One button on the confirmation card."""
+
+    label: str  # what the user sees, e.g. "Work" or "Yes, delete it"
+    value: (
+        str  # what comes back when they click it: a calendar id, or "confirm"/"cancel"
+    )
+
+
+class PendingCalendarAction(BaseModel):
+    """A calendar write that's planned but not yet carried out.
+
+    Set by calendar_plan, read by calendar_confirm (to ask the user) and
+    calendar_execute (to do it). While the graph is paused waiting for the
+    user's answer, this is what the checkpointer saves, so the action
+    survives exactly as planned. Nothing has to be re-derived from the
+    conversation text.
+    """
+
+    kind: Literal["create", "delete", "update"]
+    # Writable calendars from list_calendars ([{"id", "summary", ...}]).
+    # Kept so execute doesn't need a second list_calendars call.
+    calendars: list[dict] = Field(default_factory=list)
+    # update only: the reminder lead time the user asked for
+    reminder_minutes: Optional[int] = None
+    # create only: known up front when there's just one writable calendar
+    calendar_id: Optional[str] = None
+    # Set only when the user must approve or choose first
+    question: Optional[str] = None
+    options: list[CalendarChoice] = Field(default_factory=list)
+
+
 class AgentState(TypedDict):
-    # ── input (reuses existing request models directly) ──────────
-    messages: list[ChatMessage]
+    # ── persistent across turns (saved by the checkpointer) ──────
+    messages: Annotated[list[ChatMessage], append_messages]
+
+    # ── per-request input (overwritten every turn) ───────────────
     location: Optional[Location]
     selected_pass: Optional[SatellitePass]
     clerk_user_id: Optional[str]
 
-    # ── routing ────────────────────────────────────────────────────
+    # ── per-turn outputs (reset to None every turn) ──────────────
     routing: Optional[RoutingDecision]
-
-    # ── per-agent outputs (None if that agent wasn't called) ───────
     passes_data: Optional[PassesData]
     weather_data: Optional[WeatherData]
     knowledge_data: Optional[KnowledgeData]
     calendar_data: Optional[CalendarData]
-
-    # ── accumulated across parallel branches — needs a reducer ─────
-    tools_used: Annotated[list[str], operator.add]
-    sources: Annotated[list[str], operator.add]
-    errors: Annotated[list[str], operator.add]
-    # NEW — guardrail interventions that *succeeded* (e.g. a routing
-    # decision got corrected). Deliberately separate from `errors`,
-    # which chat_v2.py surfaces to the user as "something went wrong" —
-    # a guardrail doing its job correctly is not a failure and shouldn't
-    # trigger that message.
-    guardrail_events: Annotated[list[str], operator.add]
-
-    # ── output ───────────────────────────────────────────────────
+    # Planned-but-not-yet-approved calendar write. Survives the
+    # interrupt() pause via the checkpointer; reset at the start of every
+    # new turn so an abandoned confirmation never carries over.
+    pending_calendar_action: Optional[PendingCalendarAction]
     final_response: Optional[str]
+
+    # ── per-turn, accumulated across parallel branches ───────────
+    # None is the per-turn reset sentinel (see per_turn_list); the
+    # reducer always stores a list[str] after it runs.
+    tools_used: Annotated[list[str] | None, per_turn_list]
+    sources: Annotated[list[str] | None, per_turn_list]
+    errors: Annotated[list[str] | None, per_turn_list]
+
+    # Guardrail interventions that *succeeded* (e.g. a routing decision
+    # got corrected). Deliberately separate from `errors`, which
+    # chat_v2.py surfaces to the user as "something went wrong".
+    guardrail_events: Annotated[list[str] | None, per_turn_list]
+
+
+# Every Pydantic model stored anywhere in AgentState must be listed here,
+# or it comes back from the checkpointer as a plain dict on the next turn.
+# tests/test_checkpoint_types.py fails if one is missing.
+CHECKPOINT_TYPES: tuple[type[BaseModel], ...] = (
+    ChatMessage,
+    Location,
+    SatellitePass,
+    RoutingDecision,
+    PassesData,
+    WeatherData,
+    KnowledgeData,
+    CalendarData,
+    PendingCalendarAction,
+    CalendarChoice,
+)

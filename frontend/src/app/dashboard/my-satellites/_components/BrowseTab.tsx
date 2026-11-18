@@ -78,6 +78,12 @@ export default function BrowseTab() {
   }
 
   function isSaved(noradId: number): boolean {
+    if (
+      !savedSatellites ||
+      !Array.isArray(savedSatellites) ||
+      savedSatellites.length === 0
+    )
+      return false;
     return savedSatellites.some((s) => s.noradId === noradId);
   }
 

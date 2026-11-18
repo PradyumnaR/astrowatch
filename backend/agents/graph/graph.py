@@ -9,6 +9,8 @@ Node responsibilities:
   report_writer  -> synthesizes all outputs          (Day 4 — stub for now)
 """
 
+import logging
+
 from typing import Sequence
 from langgraph.graph import StateGraph, END
 
@@ -17,8 +19,21 @@ from agents.graph.satellite_node import satellite_node
 from agents.graph.weather_node import weather_node
 from agents.graph.knowledge_node import knowledge_node
 from agents.graph.report_writer_node import report_writer_node
-from agents.graph.calendar_node.node import calendar_node
+from agents.graph.calendar_node.node import (
+    calendar_confirm,
+    calendar_execute,
+    calendar_plan,
+)
 from agents.graph.state import AgentState
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from langgraph.graph.state import CompiledStateGraph
+
+from agents.graph.state import AgentState, CHECKPOINT_TYPES
+from shared.checkpointer import build_serializer, get_checkpointer
+
+log = logging.getLogger(__name__)
 
 
 # ── conditional routing ────────────────────────────────────────────
@@ -40,7 +55,9 @@ graph.add_node("orchestrator", orchestrator_node)
 graph.add_node("satellite", satellite_node)
 graph.add_node("weather", weather_node)
 graph.add_node("knowledge", knowledge_node)
-graph.add_node("calendar", calendar_node)
+graph.add_node("calendar_plan", calendar_plan)
+graph.add_node("calendar_confirm", calendar_confirm)
+graph.add_node("calendar_execute", calendar_execute)
 graph.add_node("report_writer", report_writer_node)
 
 graph.set_entry_point("orchestrator")
@@ -52,7 +69,7 @@ graph.add_conditional_edges(
         "satellite": "satellite",
         "weather": "weather",
         "knowledge": "knowledge",
-        "calendar": "calendar",
+        "calendar": "calendar_plan",
     },
 )
 
@@ -61,20 +78,56 @@ graph.add_edge("weather", "report_writer")
 graph.add_edge("knowledge", "report_writer")
 
 
-# calendar_node routes conditionally — skip report_writer entirely when
-# elicitation is needed, since chat_v2.py emits that as its own SSE
-# event; report_writer would otherwise generate a redundant text
-# response for something that isn't a real answer yet.
-def route_after_calendar(state: AgentState) -> str:
-    calendar_data = state.get("calendar_data")
-    if calendar_data and calendar_data.action == "needs_confirmation":
-        return END
-    return "report_writer"
+def route_after_calendar_plan(state: AgentState) -> str:
+    pending = state.get("pending_calendar_action")
+    if pending is None:
+        return "report_writer"  # plan ended with an outcome (error, not connected, ...)
+    return "calendar_confirm" if pending.question else "calendar_execute"
+
+
+def route_after_calendar_confirm(state: AgentState) -> str:
+    # Cancelled or invalid choice clears the pending action
+    return (
+        "calendar_execute" if state.get("pending_calendar_action") else "report_writer"
+    )
 
 
 graph.add_conditional_edges(
-    "calendar", route_after_calendar, {"report_writer": "report_writer", END: END}
+    "calendar_plan",
+    route_after_calendar_plan,
+    {
+        "calendar_confirm": "calendar_confirm",
+        "calendar_execute": "calendar_execute",
+        "report_writer": "report_writer",
+    },
 )
+graph.add_conditional_edges(
+    "calendar_confirm",
+    route_after_calendar_confirm,
+    {"calendar_execute": "calendar_execute", "report_writer": "report_writer"},
+)
+graph.add_edge("calendar_execute", "report_writer")
+
 graph.add_edge("report_writer", END)
 
-compiled_graph = graph.compile()
+_compiled: CompiledStateGraph[AgentState] | None = None
+
+
+def get_graph() -> CompiledStateGraph[AgentState]:
+    if _compiled is None:
+        raise RuntimeError("Graph not compiled. Is graph_lifespan registered?")
+    return _compiled
+
+
+@asynccontextmanager
+async def graph_lifespan(app: FastAPI):
+    global _compiled
+    checkpointer = get_checkpointer()
+    checkpointer.serde = build_serializer(CHECKPOINT_TYPES)
+    _compiled = graph.compile(checkpointer=checkpointer)
+    log.warning("Checkpointer allowlist: %s", checkpointer.serde._allowed_json_modules)
+    log.info("Graph compiled with Redis checkpointer")
+    try:
+        yield
+    finally:
+        _compiled = None

@@ -20,6 +20,12 @@ export function useSavedSatellites() {
     await fetchSavedSats();
 
     const latestSavedSats = useAstroStore.getState().savedSatellites;
+    if (
+      !latestSavedSats ||
+      !Array.isArray(latestSavedSats) ||
+      latestSavedSats.length === 0
+    )
+      return;
     for (const sat of latestSavedSats) {
       await fetchAndSavePasses(sat);
     }
@@ -29,6 +35,7 @@ export function useSavedSatellites() {
     setLoadingSaved(true);
     try {
       const res = await fetch("/api/saved-satellites");
+      if (!res.ok) throw new Error("Failed to fetch saved satellites");
       const data = (await res.json()) as SavedSatellite[];
       setSavedSatellites(data);
     } catch (err) {

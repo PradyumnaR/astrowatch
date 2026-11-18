@@ -49,7 +49,7 @@ export default function RagPanel() {
       const data = await res.json();
       setChunks(data.chunks ?? []);
     } catch (err) {
-      console.error("RagPanel error:", err);
+      console.log("RagPanel error:", err);
       setChunks([]);
     } finally {
       setIsLoading(false);

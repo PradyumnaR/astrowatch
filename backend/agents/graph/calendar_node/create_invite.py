@@ -8,42 +8,15 @@ from agents.graph.calendar_node.handle_tool_error import handle_tool_error
 
 async def create_invite(
     session,
-    latest_message: str,
-    writable: list[dict],
+    calendar_id: str,
     selected_pass: SatellitePass,
     dedupe_key: str,
     access_token: str,
     clerk_user_id: str,
 ) -> dict:
-    matched = (
-        None
-        if detect_prompt_injection(latest_message)
-        else next(
-            (c for c in writable if c.get("summary", "") in latest_message),
-            None,
-        )
-    )
-    if matched:
-        calendar_id = matched["id"]
-    elif len(writable) > 1:
-        return {
-            "calendar_data": CalendarData(
-                action="needs_confirmation",
-                confirmation_kind="create",
-                summary="Multiple calendars found.",
-                calendar_options=[
-                    {
-                        "label": c.get("summary", c.get("id", "Unnamed")),
-                        "value": c.get("id"),
-                    }
-                    for c in writable
-                ],
-            )
-        }
-    else:
-        calendar_id = writable[0]["id"] if writable else "primary"
-
-    # Step 2 — create the event
+    # Create the event. Which calendar was decided before this was called:
+    # automatically when there's one writable calendar, otherwise by the
+    # user's click (validated against the offered options in calendar_confirm).
     start_iso = datetime.fromtimestamp(
         selected_pass.startUTC, tz=timezone.utc
     ).isoformat()

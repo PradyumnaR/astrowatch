@@ -1,23 +1,36 @@
 import os
 
+from uuid import UUID
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from fastapi.responses import StreamingResponse
 from fastmcp.utilities.lifespan import combine_lifespans
+from redis.asyncio import Redis
+from redis.exceptions import RedisError
+from shared.redis_client import get_redis
 
 from agents.models import (
+    ChatHistoryResponse,
     ChatRequest,
     ChatResponse,
+    ChatV2Request,
+    ChatV2ResumeRequest,
     IngestRequest,
     IngestResponse,
     KnowledgeChunk,
     KnowledgeRequest,
     KnowledgeResponse,
 )
+from agents.chat_v2 import (
+    get_chat_history,
+    make_thread_id,
+    stream_chat_with_tools_v2,
+    stream_resume_v2,
+)
 from agents.knowledge import search_knowledge_base
 from agents.chat import chat_with_tools
-from agents.chat_v2 import stream_chat_with_tools_v2
+from agents.chat_v2 import get_chat_history, make_thread_id, stream_chat_with_tools_v2
 from rag.ingest import (
     ingest_nasa_apod,
     ingest_spaceflight_news,
@@ -30,8 +43,18 @@ from mcp_servers.knowledge_server import mcp as knowledge_mcp
 from mcp_servers.calendar_server import mcp as calendar_mcp
 
 from auth import require_user
+from shared.redis_client import redis_lifespan
+from shared.http_client import http_lifespan
+from shared.checkpointer import checkpointer_lifespan
+from agents.graph.graph import graph_lifespan
 
 load_dotenv()
+
+SSE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",  # disables proxy buffering (Render/nginx), ensures chunks flush immediately
+}
 
 satellite_app = satellite_mcp.http_app(path="/")
 weather_app = weather_mcp.http_app(path="/")
@@ -43,6 +66,10 @@ app = FastAPI(
     description="AI-powered satellite tracking backend",
     version="1.0.0",
     lifespan=combine_lifespans(
+        redis_lifespan,
+        http_lifespan,
+        checkpointer_lifespan,
+        graph_lifespan,
         satellite_app.lifespan,
         weather_app.lifespan,
         knowledge_app.lifespan,
@@ -75,6 +102,20 @@ async def health():
         "status": "ok",
         "service": "AstroWatch API",
         "version": "1.0.0",
+    }
+
+
+@app.get("health/redis")
+async def health_redis(redis: Redis = Depends(get_redis)):
+    try:
+        redis.ping()
+        redis_status = "ok"
+    except RedisError as e:
+        redis_status = f"error: {e}"
+    return {
+        "redis_status": "ok",
+        "service": "Redis",
+        "redis": redis_status,
     }
 
 
@@ -216,12 +257,15 @@ async def chat(request: ChatRequest):
 
 @app.post("/agents/chat/v2/stream")
 async def agents_chat_v2_stream(
-    request: ChatRequest,
+    request: ChatV2Request,
     clerk_user_id: str = Depends(require_user),
 ):
+
+    thread_id = make_thread_id(clerk_user_id, request.conversationId)
     return StreamingResponse(
         stream_chat_with_tools_v2(
-            messages=request.messages,
+            message=request.message,
+            thread_id=thread_id,
             location=request.location,
             selected_pass=request.selectedPass,
             clerk_user_id=clerk_user_id,
@@ -232,4 +276,41 @@ async def agents_chat_v2_stream(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",  # disables proxy buffering (Render/nginx), ensures chunks flush immediately
         },
+    )
+
+
+@app.get("/agents/chat/v2/history", response_model=ChatHistoryResponse)
+async def agents_chat_v2_history(
+    conversationId: UUID,
+    clerk_user_id: str = Depends(require_user),
+):
+    thread_id = make_thread_id(clerk_user_id, conversationId)
+    messages, pending = await get_chat_history(thread_id)
+    return ChatHistoryResponse(
+        conversationId=conversationId,
+        messages=messages,
+        pendingConfirmation=pending,
+    )
+
+
+@app.post("/agents/chat/v2/resume")
+async def agents_chat_v2_resume(
+    request: ChatV2ResumeRequest,
+    clerk_user_id: str = Depends(require_user),
+):
+    thread_id = make_thread_id(clerk_user_id, request.conversationId)
+
+    # Resuming a thread that isn't paused would start the graph from
+    # scratch with no input, so only allow it when a confirmation is pending
+    _, pending = await get_chat_history(thread_id)
+    if pending is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Nothing in this conversation is waiting for confirmation.",
+        )
+
+    return StreamingResponse(
+        stream_resume_v2(thread_id, request.choice),
+        media_type="text/event-stream",
+        headers=SSE_HEADERS,
     )

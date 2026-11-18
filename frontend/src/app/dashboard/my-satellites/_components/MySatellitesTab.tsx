@@ -51,44 +51,48 @@ export default function MySatellitesTab() {
         {savedSatellites.length} saved
       </p>
 
-      {savedSatellites.map((sat) => (
-        <div
-          key={sat.noradId}
-          className="flex items-center gap-3
+      {savedSatellites &&
+        savedSatellites.length > 0 &&
+        savedSatellites.map((sat) => (
+          <div
+            key={sat.noradId}
+            className="flex items-center gap-3
             bg-aw-tint border border-aw-border
             rounded-xl px-3 py-2.5
             hover:bg-aw-tint-hover transition-colors"
-        >
-          {/* color dot */}
-          <div
-            className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{
-              background: SAT_COLORS[sat.noradId] ?? DEFAULT_COLOR,
-            }}
-          />
-
-          {/* name + norad */}
-          <div className="flex-1 min-w-0">
-            <p
-              className="text-[12px] font-medium
-              text-aw-text truncate"
-            >
-              {sat.satname}
-            </p>
-            <p className="text-[10px] text-aw-text-muted mt-0.5">#{sat.noradId}</p>
-          </div>
-
-          {/* remove */}
-          <button
-            onClick={() => handleRemoveSat(sat)}
-            className="text-aw-text-muted hover:text-red-400
-              transition-colors flex-shrink-0 p-1 rounded"
-            aria-label={`Remove ${sat.satname}`}
           >
-            ✕
-          </button>
-        </div>
-      ))}
+            {/* color dot */}
+            <div
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{
+                background: SAT_COLORS[sat.noradId] ?? DEFAULT_COLOR,
+              }}
+            />
+
+            {/* name + norad */}
+            <div className="flex-1 min-w-0">
+              <p
+                className="text-[12px] font-medium
+              text-aw-text truncate"
+              >
+                {sat.satname}
+              </p>
+              <p className="text-[10px] text-aw-text-muted mt-0.5">
+                #{sat.noradId}
+              </p>
+            </div>
+
+            {/* remove */}
+            <button
+              onClick={() => handleRemoveSat(sat)}
+              className="text-aw-text-muted hover:text-red-400
+              transition-colors flex-shrink-0 p-1 rounded"
+              aria-label={`Remove ${sat.satname}`}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
     </div>
   );
 }

@@ -122,3 +122,15 @@ export interface McpApiKey {
   createdAt: string;
   revokedAt: string | null;
 }
+
+export type Elicitation = {
+  kind: "create" | "delete" | "update";
+  question: string;
+  options: { label: string; value: string }[];
+};
+
+export type ChatHistoryResponse = {
+  conversationId: string;
+  messages: { role: "user" | "assistant"; content: string }[];
+  pendingConfirmation: Elicitation | null;
+};
