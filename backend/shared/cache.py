@@ -20,6 +20,10 @@ class TTL:
     N2YO_PASSES = 60 * 60  # predictions are stable for hours
     CELESTRAK = 2 * 60 * 60  # matches your existing Supabase cache window
     APOD = 24 * 60 * 60  # changes once a day
+    EMBEDDING = 7 * 24 * 60 * 60  # same text + model → same vector; never goes stale
+    RAG_RESULTS = (
+        60 * 60
+    )  # bounded staleness after ingestion (until 4d invalidates instantly)
 
 
 def cache_key(*parts: object) -> str:

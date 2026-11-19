@@ -1,7 +1,11 @@
 import os
+import hashlib
 
 from dotenv import load_dotenv
 from voyageai.client_async import AsyncClient
+
+from shared.cache import TTL, cache_key, get_or_fetch
+from shared.redis_client import get_redis_client
 
 load_dotenv()
 
@@ -14,15 +18,26 @@ EMBEDDING_MODEL = "voyage-3"
 EMBEDDING_DIMS = 1024
 
 
+def normalize_text(text: str) -> str:
+    """Collapse whitespace so "Hubble  " and "Hubble" share one cache entry."""
+    return " ".join(text.split())
+
+
 async def embed_text(text: str) -> list[float] | list[int]:
     """
     Convert a single text string to a vector embedding.
     Used for query embeddings at search time.
     """
 
-    result = await voyage.embed(texts=[text], model=EMBEDDING_MODEL)
+    text = normalize_text(text)
+    digest = hashlib.sha256(text.encode()).hexdigest()
+    key = cache_key("embed", EMBEDDING_MODEL, digest)
 
-    return result.embeddings[0]
+    async def fetch() -> list[float] | list[int]:
+        result = await voyage.embed(texts=[text], model=EMBEDDING_MODEL)
+        return result.embeddings[0]
+
+    return await get_or_fetch(get_redis_client(), key, TTL.EMBEDDING, fetch)
 
 
 async def embed_batch(texts: list[str]) -> list[list[float] | list[int]]:
