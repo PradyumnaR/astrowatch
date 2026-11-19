@@ -1,8 +1,8 @@
+import asyncio
 import os
-from unittest import result
-from supabase import create_client, Client
+
 from dotenv import load_dotenv
-import supabase
+from supabase import Client, create_client
 
 load_dotenv()
 
@@ -92,15 +92,20 @@ async def search_knowledge(
     """
     supabase = get_supabase()
 
-    result = supabase.rpc(
-        "match_knowledge",
-        {
-            "query_embedding": query_embedding,
-            "match_threshold": match_threshold,
-            "match_count": match_count,
-            "filter_source": filter_source,
-        },
-    ).execute()
+    # The sync Supabase client blocks while waiting on the network; run it
+    # in a worker thread so the event loop keeps serving other requests.
+    # (Full async client: see the async audit.)
+    result = await asyncio.to_thread(
+        supabase.rpc(
+            "match_knowledge",
+            {
+                "query_embedding": query_embedding,
+                "match_threshold": match_threshold,
+                "match_count": match_count,
+                "filter_source": filter_source,
+            },
+        ).execute
+    )
 
     if not result.data or not isinstance(result.data, list):
         return []
@@ -118,16 +123,18 @@ async def hybrid_search_knowledge(
     Search knowledge base using hybrid similarity.
     """
     supabase = get_supabase()
-    result = supabase.rpc(
-        "hybrid_knowledge",
-        {
-            "query_text": query,
-            "query_embedding": query_embedding,
-            "match_threshold": match_threshold,
-            "match_count": match_count,
-            "filter_source": filter_source,
-        },
-    ).execute()
+    result = await asyncio.to_thread(
+        supabase.rpc(
+            "hybrid_knowledge",
+            {
+                "query_text": query,
+                "query_embedding": query_embedding,
+                "match_threshold": match_threshold,
+                "match_count": match_count,
+                "filter_source": filter_source,
+            },
+        ).execute
+    )
     if not result.data or not isinstance(result.data, list):
         return []
     return [row for row in result.data if isinstance(row, dict)]
