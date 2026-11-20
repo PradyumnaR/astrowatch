@@ -4,6 +4,14 @@ import { auth } from "@clerk/nextjs/server";
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 
+// An SSE "error" event, which ChatPanel renders as an assistant message
+function sseError(message: string, status: number) {
+  return new Response(
+    `data: ${JSON.stringify({ type: "error", message })}\n\n`,
+    { status, headers: { "Content-Type": "text/event-stream" } },
+  );
+}
+
 export async function POST(req: Request) {
   try {
     const { userId, getToken } = await auth();
@@ -16,10 +24,16 @@ export async function POST(req: Request) {
     console.log("Token exists:", !!token, "length:", token?.length);
 
     const body = await req.json();
-    const { messages, location, selectedPass } = body;
+    const { message, location, selectedPass, conversationId } = body;
 
-    if (!messages || messages.length === 0) {
-      return NextResponse.json({ error: "Messages required" }, { status: 400 });
+    if (typeof message !== "string" || !message.trim()) {
+      return NextResponse.json({ error: "Message required" }, { status: 400 });
+    }
+    if (typeof conversationId !== "string" || !conversationId) {
+      return NextResponse.json(
+        { error: "conversationId required" },
+        { status: 400 },
+      );
     }
 
     // call FastAPI backend
@@ -30,11 +44,20 @@ export async function POST(req: Request) {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        messages,
+        message,
         location,
         selectedPass,
+        conversationId,
       }),
     });
+
+    if (response.status === 429) {
+      const retryAfter = response.headers.get("Retry-After") ?? "a few";
+      return sseError(
+        `You're sending messages quickly. Please wait ${retryAfter} seconds and try again.`,
+        429,
+      );
+    }
 
     if (!response.ok || !response.body) {
       const errorBody = await response.text();
@@ -55,16 +78,13 @@ export async function POST(req: Request) {
 
     // emit a fallback as a single SSE "final" event, so ChatPanel's
     // stream parser handles this the same way as a real stream
-    const fallbackEvent = {
-      type: "final",
-      content:
-        "I'm having trouble connecting to the AI backend. " +
-        "Please make sure the backend server is running and try again.",
-      toolsUsed: [],
-      sources: [],
+    const errorEvent = {
+      type: "error",
+      message:
+        "I'm having trouble connecting to the AI backend. Please try again in a moment.",
     };
 
-    return new Response(`data: ${JSON.stringify(fallbackEvent)}\n\n`, {
+    return new Response(`data: ${JSON.stringify(errorEvent)}\n\n`, {
       status: 500,
       headers: { "Content-Type": "text/event-stream" },
     });

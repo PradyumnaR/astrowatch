@@ -11,10 +11,7 @@ from agents.graph.state import AgentState, RoutingDecision
 from typing import cast
 
 from utils.format_known_satellites import format_known_satellites
-from app_guardrails.orchestrator_guardrails import (
-    enforce_routing_policy,
-    is_calendar_confirmation_reply,
-)
+from app_guardrails.orchestrator_guardrails import enforce_routing_policy
 
 ORCHESTRATOR_MODEL = "claude-haiku-4-5-20251001"
 
@@ -30,10 +27,9 @@ Agents available:
 currently selected satellite pass (e.g. changing when its reminder fires). \
 Only route here when the user explicitly asks to save/add/schedule, \
 delete/remove/cancel, or update/change a calendar invite or its reminder \
-— never infer this intent from an ambiguous message. Also route here when \
-the user's message is a short yes/no reply that's plausibly answering a \
-calendar confirmation question the assistant just asked (calendar_node \
-handles resolving what's being confirmed).
+— never infer this intent from an ambiguous message. When you do route \
+here, route ONLY to calendar: intent "calendar", agents_to_call \
+["calendar"], even if the message also names a satellite.
 
 Known satellites and their NORAD IDs:
 {format_known_satellites()}
@@ -82,26 +78,6 @@ def _format_selected_satellite(state: AgentState) -> str:
 def orchestrator_node(state: AgentState) -> dict:
     msgs = state["messages"]
     latest_message = msgs[-1].content if msgs else ""
-    previous_message = msgs[-2].content if len(msgs) > 1 else None
-
-    # A bare yes/no reply to calendar_node's own confirmation question
-    # needs no semantic classification — it's deterministically known
-    # from the previous turn already carrying calendar intent (see
-    # is_calendar_confirmation_reply). Route it directly and skip the LLM
-    # call entirely: a keyword-free "yes" is exactly the kind of message
-    # the router's own general ambiguity rule ("if unsure, default to
-    # all") can plausibly claim instead of the intended calendar route,
-    # so this case shouldn't depend on the router's judgment at all.
-    if is_calendar_confirmation_reply(latest_message, previous_message):
-        routing = RoutingDecision(
-            intent="calendar",
-            agents_to_call=["calendar"],
-            reasoning="Deterministic: latest message is a yes/no reply to "
-            "the assistant's own pending calendar confirmation.",
-            resolved_query=latest_message,
-            norad_id=None,
-        )
-        return {"routing": routing}
 
     prompt = (
         f"Conversation history:\n{_format_history(state)}\n\n"
@@ -121,9 +97,7 @@ def orchestrator_node(state: AgentState) -> dict:
         )
 
         print(f"[orchestrator_guardrail debug] latest_message = {latest_message!r}")
-        policy_result = enforce_routing_policy(
-            decision, latest_message, previous_message
-        )
+        policy_result = enforce_routing_policy(decision, latest_message)
 
         result: dict = {"routing": policy_result.routing}
         if policy_result.overridden:

@@ -1,0 +1,46 @@
+services:
+  redis:
+    image: redis:8 # pin an exact 8.x tag from Docker Hub before committing
+    container_name: astrowatch-redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD} # ← add this
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy noeviction
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli -a $${REDIS_PASSWORD} --no-auth-warning ping | grep PONG",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+  redisinsight:
+    image: redis/redisinsight:latest # pin an exact version before committing
+    container_name: astrowatch-redisinsight
+    environment:
+      RI_ACCEPT_TERMS_AND_CONDITIONS: "true"
+      RI_REDIS_HOST: redis # the Compose service name
+      RI_REDIS_PORT: "6379"
+      RI_REDIS_ALIAS: astrowatch
+      RI_REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:5540:5540"
+    volumes:
+      - redisinsight-data:/data
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  redisinsight-data:

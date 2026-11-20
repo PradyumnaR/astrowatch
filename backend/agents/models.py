@@ -1,5 +1,12 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Annotated, Literal, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, StringConstraints
+
+# Upper bound on one chat message. Protects LLM cost and the stored
+# history from oversized input; ~4000 chars is far beyond a real question.
+MAX_MESSAGE_CHARS = 4000
 
 # ── Location ─────────────────────────────────────────
 
@@ -108,3 +115,47 @@ class WeatherToolInput(BaseModel):
 class KnowledgeToolInput(BaseModel):
     query: str
     limit: int = 3
+
+
+class ChatV2Request(BaseModel):
+    """v2 chat: the server owns the conversation history (LangGraph
+    checkpointer), so the client sends only the new message plus the
+    conversation it belongs to."""
+
+    message: Annotated[
+        str,
+        StringConstraints(
+            strip_whitespace=True, min_length=1, max_length=MAX_MESSAGE_CHARS
+        ),
+    ]
+    conversationId: UUID
+    location: Optional[Location] = None
+    selectedPass: Optional[SatellitePass] = None
+
+
+class ConfirmationOption(BaseModel):
+    label: str
+    value: str
+
+
+class PendingConfirmation(BaseModel):
+    """A question the graph is paused on (the interrupt() payload)."""
+
+    kind: Literal["create", "delete", "update"]
+    question: str
+    options: list[ConfirmationOption]
+
+
+class ChatV2ResumeRequest(BaseModel):
+    """The user's answer to a pending confirmation."""
+
+    conversationId: UUID
+    choice: Annotated[str, StringConstraints(min_length=1, max_length=256)]
+
+
+class ChatHistoryResponse(BaseModel):
+    conversationId: UUID
+    messages: list[ChatMessage]
+    # Set when the conversation is paused on a calendar confirmation,
+    # so a reloaded page can show the card again
+    pendingConfirmation: Optional[PendingConfirmation] = None

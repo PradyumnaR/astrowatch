@@ -74,8 +74,6 @@ _CALENDAR_TOOL_CLASSES = [
     CreatePassInvite,
     DeletePassInvite,
     UpdatePassInviteReminder,
-    ConfirmPendingCalendarAction,
-    CancelPendingCalendarAction,
 ]
 _CALENDAR_TOOL_NAME_MAP = {cls.__name__: cls for cls in _CALENDAR_TOOL_CLASSES}
 
@@ -117,7 +115,7 @@ async def classify_action(state: AgentState) -> Optional[BaseModel]:
     """
     Real Anthropic tool-calling (LangChain's bind_tools, same mechanism as
     the raw SDK's native tool use) over a cheap model — reads recent
-    conversation history and picks exactly one of the five calendar tools
+    conversation history and picks exactly one of the three calendar tools
     above.
 
     Returns None — never a guessed action — when the model doesn't call a
@@ -146,11 +144,18 @@ async def classify_action(state: AgentState) -> Optional[BaseModel]:
         )
         tool_calls = getattr(response, "tool_calls", None) or []
         if not tool_calls:
+            print(
+                f"[classify_action] no tool call — model replied: {response.content!r}"
+            )
             return None
 
         call = tool_calls[0]
         tool_cls = _CALENDAR_TOOL_NAME_MAP.get(call["name"])
         if tool_cls is None:
+            print(
+                f"[classify_action] unknown tool {call['name']!r}, "
+                f"expected one of {list(_CALENDAR_TOOL_NAME_MAP)}"
+            )
             return None
         return tool_cls(**call.get("args", {}))
     except Exception:

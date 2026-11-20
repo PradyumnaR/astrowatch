@@ -27,12 +27,19 @@ export async function GET(req: Request) {
       "&temperature_unit=fahrenheit",
       "&wind_speed_unit=mph",
       "&forecast_days=3",
-      `&timezone=${timezone}`,
+      `&timezone=${encodeURIComponent(timezone ?? "auto")}`,
     ].join("");
 
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
 
-    console.log(url);
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`Open-Meteo ${res.status}:`, body);
+      return NextResponse.json(
+        { error: "Weather service unavailable" },
+        { status: 502 },
+      );
+    }
 
     const data = (await res.json()) as OpenMeteoResponse;
     return NextResponse.json({
